@@ -1,0 +1,7 @@
+# Core
+fastmcp>=3.0.0
+requests>=2.32.0
+beautifulsoup4>=4.12.0
+
+# Optional — pandas for data export
+pandas>=2.0.0
