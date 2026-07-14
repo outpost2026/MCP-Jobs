@@ -23,3 +23,6 @@ Thumbs.db
 *.csv
 *.md
 !README.md
+
+# Scraped data — raw HTML + results JSON from live tests
+data/

@@ -1,7 +1,12 @@
 [project]
 name = "mcp-jobs"
-version = "0.1.0"
-description = "MCP server for CZ job portal search and EROI analysis"
+version = "0.2.0"
+description = "MCP server for CZ job portal search — live scraping, boolean matching, EROI analysis"
+authors = [
+    {name = "Ondřej Soušek", email = "outpost2026@github.com"},
+]
+license = {text = "MIT"}
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastmcp>=3.0.0",
@@ -12,5 +17,13 @@ dependencies = [
 [project.scripts]
 mcp-jobs = "mcp_jobs.cli:main"
 
+[project.urls]
+Source = "https://github.com/outpost2026/MCP-Jobs"
+Issues = "https://github.com/outpost2026/MCP-Jobs/issues"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

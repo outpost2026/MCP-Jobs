@@ -1,0 +1,52 @@
+# MCP-Jobs user configuration
+# Edit this file to define your portals, categories, and search queries.
+# The engine is universal — personalization is in this YAML only.
+
+user: "default"
+
+portals:
+  jobs:
+    enabled: true
+    categories:
+      - url: "https://www.jobs.cz/prace/praha/"
+        pages: 3
+      - url: "https://www.jobs.cz/prace/brno/"
+        pages: 2
+
+  bazos:
+    enabled: true
+    categories:
+      - url: "https://prace.bazos.cz/"
+        pages: 10
+
+  pracecz:
+    enabled: true
+    categories:
+      - url: "https://www.prace.cz/nabidky/hlavni-mesto-praha/praha/"
+        pages: 5
+
+  nyx:
+    enabled: false
+    categories: []
+
+queries:
+  python_jobs:
+    boolean: "(python OR developer OR programator OR vyvojar) NOT senior"
+    exclude: ["agentura", "nabizim", "nabizime", "prodavame", "hledam praci", "hledame kolegu", "do tymu", "dodam", "firmy", "ico", "jmenuji se", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "lektor", "kurz"]
+    min_salary: 0
+    locations: []
+    portals: ["jobs", "pracecz"]
+
+  cnc_jobs:
+    boolean: "(cnc OR frezar OR programovani OR serizovani)"
+    exclude: ["agentura", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "personalni", "pronajem", "provadim", "provadime", "prijmeme", "prijima objednavky", "ubytovn", "zprostredkovani"]
+    min_salary: 0
+    locations: ["brno", "ostrava", "praha"]
+    portals: ["bazos", "pracecz"]
+
+  elektrikar:
+    boolean: "(elektrikar OR elektroinstalace OR autoelektrikar)"
+    exclude: ["agentura", "autoskola", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "prodavame", "provadim", "provadime", "prijmeme", "prijima objednavky", "revize"]
+    min_salary: 0
+    locations: ["praha"]
+    portals: ["bazos", "pracecz", "jobs"]
