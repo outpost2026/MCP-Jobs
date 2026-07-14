@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
+from .utils import strip_emoji
+
 
 @dataclass
 class Ad:
@@ -27,7 +29,7 @@ class Ad:
                    "matched_keyword", "scraped_at"):
             v = getattr(self, k, None)
             if v is not None:
-                d[k] = v
+                d[k] = strip_emoji(v) if isinstance(v, str) else v
         return d
 
 

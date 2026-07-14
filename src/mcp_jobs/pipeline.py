@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -18,20 +19,29 @@ def _location_filter(ad: Ad, locations: list[str]) -> bool:
     ad_loc = ad.location.lower().strip()
     return any(loc.lower().strip() in ad_loc for loc in locations)
 
+_SALARY_NUM_RE = re.compile(r"\d{1,3}(?:[ \u00a0]\d{3})+|\d+")
+
 
 def _salary_filter(ad: Ad, min_salary: int) -> bool:
     if min_salary <= 0 or not ad.salary:
         return True
-    numbers = [int(s) for s in ad.salary.split() if s.replace(".", "", 1).lstrip("-").isdigit()]
+    raw_numbers = _SALARY_NUM_RE.findall(ad.salary)
+    numbers = [int(n.replace(" ", "").replace("\u00a0", "")) for n in raw_numbers]
+    if not numbers:
+        return True
     return any(n >= min_salary for n in numbers)
 
 
-def _unique_by_url(ads: list[Ad]) -> list[Ad]:
-    seen: set[str] = set()
+def _dedup(ads: list[Ad]) -> list[Ad]:
+    seen_url: set[str] = set()
+    seen_fuzzy: set[tuple[str, str]] = set()
     result: list[Ad] = []
     for ad in ads:
-        if ad.url not in seen:
-            seen.add(ad.url)
+        url_key = ad.url
+        fuzzy_key = (ad.title.lower().strip(), (ad.company or "").lower().strip())
+        if url_key not in seen_url and fuzzy_key not in seen_fuzzy:
+            seen_url.add(url_key)
+            seen_fuzzy.add(fuzzy_key)
             result.append(ad)
     return result
 
@@ -86,7 +96,7 @@ class SearchPipeline:
                 except Exception as e:
                     logger.error(f"  {portal_name}: {cat.url} -> error: {e}")
 
-        return _unique_by_url(pool)
+        return _dedup(pool)
 
     @staticmethod
     def from_config(path: str | Path) -> SearchPipeline:

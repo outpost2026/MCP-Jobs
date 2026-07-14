@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import quote_plus, urlencode
@@ -8,6 +9,8 @@ from bs4 import BeautifulSoup
 
 from ..models import Ad
 from .base import BaseScraper
+
+logger = logging.getLogger(__name__)
 
 
 class BazosScraper(BaseScraper):
@@ -61,7 +64,9 @@ class BazosScraper(BaseScraper):
         soup = BeautifulSoup(html_text, "html.parser")
         ads: list[Ad] = []
 
-        for card in soup.select("div.inzeraty"):
+        cards = soup.select("div.inzeraty")
+        skipped = 0
+        for card in cards:
             try:
                 title_el = card.select_one("h2.nadpis a")
                 if not title_el:
@@ -101,7 +106,15 @@ class BazosScraper(BaseScraper):
                     matched_keyword=query,
                 )
                 ads.append(ad)
-            except Exception:
-                continue
+            except Exception as e:
+                skipped += 1
+                logger.warning("%s: failed to parse card: %s", self.name, e)
+
+        if cards and not ads:
+            logger.error(
+                "%s: found %d cards but parsed 0 ads — selector likely broken",
+                self.name, len(cards))
+        elif skipped:
+            logger.info("%s: skipped %d/%d cards", self.name, skipped, len(cards))
 
         return ads
