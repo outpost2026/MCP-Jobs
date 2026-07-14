@@ -71,21 +71,21 @@ queries:
 
   zahradnik:
     boolean: "(zahradnik OR zahradník OR zahradni OR sekani travy OR sekání trávy OR zahradni prace OR zahradní práce OR pomohu na zahrade OR pomoc na zahradu OR uprava zahrady OR zahradnicke prace OR zahradnické práce OR jarni uprava zahrady OR jarní úprava zahrady)"
-    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "uklizecka", "štěně", "steně", "stene", "kuchyn", "sklad", "restaurace", "nádobí", "nádobi"]
+    exclude: ["agentura", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "uklizecka", "štěně", "steně", "stene", "kuchyn", "sklad", "restaurace", "nádobí", "nádobi"]
     min_salary: 0
     locations: []
     portals: ["bazos"]
 
   truhlar:
     boolean: "(truhlar OR truhlář OR truhlarka OR truhlářka OR vyroba nabytku OR výroba nábytku OR vyroba dreveneho OR výroba dřevěného OR montaz nabytku OR montáž nábytku OR drevoobrabeni OR dřevařská vyroba OR stolar OR stolař)"
-    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "brikety", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "odvoz", "palivove", "palivové", "parta", "prodavame", "prodám", "provadim", "provadime", "prijmeme", "prijima objednavky", "starozitne", "starožitné", "stary", "starý", "montér", "monter"]
+    exclude: ["agentura", "brikety", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "odvoz", "palivove", "palivové", "parta", "prodavame", "prodám", "provadim", "provadime", "prijmeme", "prijima objednavky", "starozitne", "starožitné", "stary", "starý", "montér", "monter"]
     min_salary: 0
     locations: []
     portals: ["bazos"]
 
   strechy:
     boolean: "(strecha OR střecha OR pokryvac OR pokrývač OR okap OR krytina OR latovani OR strechy OR střechy OR rekonstrukce strechy OR rekonstrukce střechy OR oprava strechy OR oprava střechy OR cisteni okapu OR čištění okapů OR lepeni strechy)"
-    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "auto", "do tymu", "dodam", "firmy", "garaz", "garáž", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "karoserie", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky"]
+    exclude: ["agentura", "auto", "do tymu", "dodam", "firmy", "garaz", "garáž", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "karoserie", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky"]
     min_salary: 0
     locations: []
     portals: ["bazos"]
