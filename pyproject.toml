@@ -1,6 +1,6 @@
 [project]
 name = "mcp-jobs"
-version = "0.2.0"
+version = "0.3.0"
 description = "MCP server for CZ job portal search — live scraping, boolean matching, EROI analysis"
 authors = [
     {name = "Ondřej Soušek", email = "outpost2026@github.com"},
