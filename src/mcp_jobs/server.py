@@ -10,12 +10,11 @@ from . import __version__
 from .config import UserConfig
 from .matcher import Matcher
 from .pipeline import SearchPipeline
-from .providers import REGISTRY
+from .providers import ACTIVE_PORTALS
 
 logger = logging.getLogger(__name__)
 mcp = FastMCP("MCP-Jobs")
 
-ACTIVE_PORTALS = {k: v for k, v in REGISTRY.items() if k != "nyx"}
 PORTAL_ALIASES: dict[str, str] = {
     "vše": "vše",
     "vse": "vše",

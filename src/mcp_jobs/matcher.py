@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
 from typing import Optional
 
 from .models import Ad
+
+logger = logging.getLogger(__name__)
 
 
 def strip_diacritics(text: str) -> str:
@@ -94,7 +97,10 @@ class _Parser:
         return tok
 
     def parse(self) -> _Node:
-        return self._parse_expr()
+        node = self._parse_expr()
+        if self.peek()[0] != "EOF":
+            raise ValueError(f"Unexpected trailing token: {self.peek()}")
+        return node
 
     def _parse_expr(self) -> _Node:
         left = self._parse_term()
@@ -106,9 +112,8 @@ class _Parser:
 
     def _parse_term(self) -> _Node:
         left = self._parse_factor()
-        while self.peek()[0] in ("AND", "NOT", "WORD", "LPAREN"):
-            if self.peek()[0] == "AND":
-                self.consume()
+        while self.peek()[0] == "AND":
+            self.consume()
             right = self._parse_factor()
             left = _And(left, right)
         return left
@@ -139,13 +144,26 @@ def parse_boolean(expression: str) -> _Node:
     return parser.parse()
 
 
+def validate_boolean(expression: str) -> bool:
+    """Validate boolean expression syntax. Returns True if valid, False + log if malformed."""
+    if not expression or not expression.strip():
+        return True
+    try:
+        parse_boolean(expression)
+        return True
+    except (ValueError, IndexError) as e:
+        logger.warning("Malformed boolean expression %r: %s", expression, e)
+        return False
+
+
 def evaluate_boolean(text: str, expression: str) -> bool:
     if not expression or not expression.strip():
         return True
     try:
         ast = parse_boolean(expression)
         return ast.evaluate(text)
-    except (ValueError, IndexError):
+    except (ValueError, IndexError) as e:
+        logger.warning("Boolean parse error for %r: %s", expression, e)
         return False
 
 

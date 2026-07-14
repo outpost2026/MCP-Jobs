@@ -56,6 +56,7 @@ class SearchPipeline:
 
         for name, qconf in self.config.queries.items():
             if not qconf.boolean:
+                logger.warning("Query %r has empty boolean expression — skipping", name)
                 continue
 
             filtered = []

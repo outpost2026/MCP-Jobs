@@ -87,3 +87,26 @@ def test_dedup_normalized():
     result = _dedup(ads)
     assert len(result) == 1
     assert result[0].url == "http://x/1"
+
+
+def test_empty_boolean_skipped():
+    """Empty boolean expression is skipped with warning (does not crash)."""
+    from mcp_jobs.config import UserConfig
+    from pathlib import Path
+    import tempfile, json
+    yaml = """
+    portals: {}
+    queries:
+      empty_query:
+        boolean: ""
+    """
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(yaml)
+        tmp = f.name
+    try:
+        config = UserConfig.from_yaml(Path(tmp))
+        pipeline = SearchPipeline(config)
+        result = pipeline.run()
+        assert "empty_query" not in result
+    finally:
+        Path(tmp).unlink(missing_ok=True)

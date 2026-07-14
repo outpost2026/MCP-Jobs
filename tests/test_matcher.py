@@ -1,4 +1,5 @@
-from mcp_jobs.matcher import Matcher, matches_ad, evaluate_boolean, parse_boolean
+import pytest
+from mcp_jobs.matcher import Matcher, matches_ad, evaluate_boolean, parse_boolean, validate_boolean
 from mcp_jobs.models import Ad
 
 
@@ -61,12 +62,12 @@ def test_boolean_or():
 
 
 def test_boolean_not():
-    assert evaluate_boolean("Senior Test Engineer", "test NOT senior") is False
-    assert evaluate_boolean("Test Engineer", "test NOT senior") is True
+    assert evaluate_boolean("Senior Test Engineer", "test AND NOT senior") is False
+    assert evaluate_boolean("Test Engineer", "test AND NOT senior") is True
 
 
 def test_boolean_parentheses():
-    expr = "(python OR java) AND developer NOT senior"
+    expr = "(python OR java) AND developer AND NOT senior"
     assert evaluate_boolean("Python Developer", expr) is True
     assert evaluate_boolean("Senior Java Developer", expr) is False
     assert evaluate_boolean("Python Junior", expr) is False
@@ -110,7 +111,7 @@ def test_precedence_and_over_or():
 
 
 def test_complex_nested():
-    expr = "(python OR java OR go) AND (developer OR engineer) NOT (senior OR lead)"
+    expr = "(python OR java OR go) AND (developer OR engineer) AND NOT (senior OR lead)"
     assert evaluate_boolean("Python Developer", expr) is True
     assert evaluate_boolean("Senior Java Engineer", expr) is False
     assert evaluate_boolean("Go Engineer", expr) is True
@@ -156,8 +157,8 @@ def test_boolean_diacritics_word_boundary():
 
 
 def test_boolean_diacritics_not():
-    assert evaluate_boolean("Junior programátor", "programator NOT junior") is False
-    assert evaluate_boolean("Programátor", "programator NOT junior") is True
+    assert evaluate_boolean("Junior programátor", "programator AND NOT junior") is False
+    assert evaluate_boolean("Programátor", "programator AND NOT junior") is True
 
 
 def test_boolean_diacritics_matches_ad():
@@ -171,3 +172,55 @@ def test_has_exclude_diacritics():
     assert Matcher.has_exclude("Senior vývojář", "senior") is True
     assert Matcher.has_exclude("Junior vývojář", "senior") is False
     assert Matcher.has_exclude("Vedoucí vývojář", "vedoucí") is True
+
+
+# ── Parser strictness (Iteration 3) ───────────────────────────────────
+
+def test_trailing_rparen_error():
+    assert evaluate_boolean("Python Developer", "python)") is False
+
+
+def test_trailing_rparen_parse_raises():
+    with pytest.raises(ValueError, match="Unexpected trailing token"):
+        parse_boolean("python)")
+
+
+def test_double_and_error():
+    assert evaluate_boolean("Python Developer", "python AND AND java") is False
+
+
+def test_double_and_parse_raises():
+    with pytest.raises(ValueError):
+        parse_boolean("python AND AND java")
+
+
+def test_double_or_error():
+    assert evaluate_boolean("Python Developer", "python OR OR java") is False
+
+
+def test_implicit_and_rejected():
+    with pytest.raises(ValueError, match="Unexpected trailing token"):
+        parse_boolean("python java")
+
+
+def test_implicit_and_rejected_evaluate():
+    assert evaluate_boolean("Python Developer", "python java") is False
+
+
+def test_validate_boolean_valid():
+    assert validate_boolean("python AND java") is True
+    assert validate_boolean("python OR java") is True
+    assert validate_boolean("python AND NOT java") is True
+    assert validate_boolean("") is True
+    assert validate_boolean("   ") is True
+
+
+def test_validate_boolean_malformed():
+    assert validate_boolean("python)") is False
+    assert validate_boolean("python AND AND java") is False
+    assert validate_boolean("python java") is False
+    assert validate_boolean("(python OR java") is False
+
+
+def test_missing_rparen_error():
+    assert evaluate_boolean("Python", "(python OR java") is False
