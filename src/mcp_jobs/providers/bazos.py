@@ -18,6 +18,7 @@ _DATE_RE = re.compile(r"\[(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})\]")
 
 class BazosScraper(BaseScraper):
     BASE_URL = "https://www.bazos.cz"
+    _SUBDOMAIN_RE = re.compile(r"(https?://[^/]+)")
 
     @property
     def name(self) -> str:
@@ -26,12 +27,18 @@ class BazosScraper(BaseScraper):
     def build_search_url(self, query: str) -> str:
         return f"{self.BASE_URL}/search.php?hledat={quote_plus(query)}"
 
+    @staticmethod
+    def _extract_base(url: str) -> str:
+        m = BazosScraper._SUBDOMAIN_RE.match(url)
+        return m.group(1) if m else "https://www.bazos.cz"
+
     def scrape_all(self, url: str, max_pages: int = 10, params: dict[str, str] | None = None) -> list[Ad]:
         all_ads: list[Ad] = []
         seen_urls: set[str] = set()
         query_suffix = ""
         if params:
             query_suffix = "?" + urlencode(params)
+        base_domain = self._extract_base(url)
 
         for page in range(1, max_pages + 1):
             if page == 1:
@@ -46,7 +53,7 @@ class BazosScraper(BaseScraper):
             if not text:
                 break
 
-            ads = self.parse_listings(text, "")
+            ads = self.parse_listings(text, "", base_domain)
             new = 0
             for ad in ads:
                 if ad.url not in seen_urls:
@@ -63,9 +70,10 @@ class BazosScraper(BaseScraper):
 
         return all_ads
 
-    def parse_listings(self, html_text: str, query: str = "") -> list[Ad]:
+    def parse_listings(self, html_text: str, query: str = "", base_domain: str | None = None) -> list[Ad]:
         soup = BeautifulSoup(html_text, "html.parser")
         ads: list[Ad] = []
+        domain = base_domain or self.BASE_URL
 
         cards = soup.select("div.inzeraty")
         skipped = 0
@@ -76,8 +84,8 @@ class BazosScraper(BaseScraper):
                     continue
 
                 title = title_el.get_text(strip=True)
-                relative_url = title_el.get("href", "")
-                url = relative_url if relative_url.startswith("http") else f"{self.BASE_URL}/{relative_url.lstrip('/')}"
+                raw_href = title_el.get("href", "")
+                url = raw_href if raw_href.startswith("http") else f"{domain}/{raw_href.lstrip('/')}"
 
                 desc_el = card.select_one(".popis")
                 description = desc_el.get_text(strip=True) if desc_el else ""

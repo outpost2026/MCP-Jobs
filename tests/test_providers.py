@@ -98,6 +98,19 @@ def test_bazos_scrape_all_stops_on_empty():
     assert isinstance(ads, list)
 
 
+def test_bazos_subdomain_url():
+    scraper = BazosScraper()
+    ads = scraper.parse_listings(BAZOS_HTML, "python", base_domain="https://prace.bazos.cz")
+    assert len(ads) == 1
+    assert ads[0].url == "https://prace.bazos.cz/detail/123"
+
+
+def test_bazos_extract_base():
+    assert BazosScraper._extract_base("https://prace.bazos.cz/") == "https://prace.bazos.cz"
+    assert BazosScraper._extract_base("https://www.bazos.cz/") == "https://www.bazos.cz"
+    assert BazosScraper._extract_base("https://prace.bazos.cz/brigada/") == "https://prace.bazos.cz"
+
+
 def test_jobs_parse_listings():
     scraper = JobsScraper()
     ads = scraper.parse_listings(JOBS_HTML, "python+engineer")
