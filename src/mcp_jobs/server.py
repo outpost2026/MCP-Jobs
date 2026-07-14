@@ -155,6 +155,67 @@ def list_portals() -> list[dict]:
     ]
 
 
+@mcp.prompt(
+    name="search_expert",
+    title="Search Expert — Boolean Query Builder",
+    description="Convert natural language job search criteria into a boolean query for MCP-Jobs"
+)
+def search_expert(
+    query_description: str,
+    location: str = "",
+    min_salary: int = 0,
+    exclude_terms: str = "",
+) -> list[dict]:
+    desc_words = [w.strip() for w in query_description.strip().split() if w.strip()]
+    desc_expr = " AND ".join(f"({w})" for w in desc_words) if desc_words else ""
+    parts = [desc_expr] if desc_expr else []
+    if location.strip():
+        loc_words = [w.strip() for w in location.strip().split() if w.strip()]
+        loc_expr = " AND ".join(f"({w})" for w in loc_words)
+        parts.append(f"({loc_expr})" if len(loc_words) > 1 else loc_expr)
+    boolean_query = " AND ".join(parts) if parts else ""
+    if exclude_terms.strip():
+        exclude_list = [t.strip() for t in exclude_terms.split(",") if t.strip()]
+        if exclude_list:
+            not_part = " AND ".join(f"NOT {e}" for e in exclude_list)
+            boolean_query = f"{boolean_query} AND {not_part}" if boolean_query else not_part
+
+    loc_val = repr(location) if location else ""
+    excl_list = [e.strip() for e in exclude_terms.split(",") if e.strip()] if exclude_terms else []
+    excl_val = ", ".join(repr(e) for e in excl_list)
+
+    lines = [
+        "## Generated Boolean Query",
+        "```",
+        boolean_query,
+        "```",
+        "",
+        "### Usage",
+        "",
+        "**Option 1 — Quick search (ad-hoc):**",
+        "Use `search_jobs_v2` with `query=\"{}\"`".format(boolean_query),
+        "",
+        "**Option 2 — Config file (full pipeline):**",
+        "```yaml",
+        "queries:",
+        "  my_search:",
+        '    boolean: "{}"'.format(boolean_query),
+        "    locations: [{}]".format(loc_val),
+        "    min_salary: {}".format(min_salary if min_salary > 0 else 0),
+        "    exclude: [{}]".format(excl_val),
+        "```",
+        "",
+        "### Boolean Syntax Reference",
+        "- `AND` — both terms must match (e.g., `python AND developer`)",
+        "- `OR` — either term matches (e.g., `python OR java`)",
+        "- `NOT` — term must NOT be present (e.g., `NOT senior`)",
+        "- Parentheses for grouping: `(python OR java) AND developer`",
+        "- Word-boundary matching: `cnc` does NOT match `elektrocnc`",
+        "- Diacritics-insensitive: `programátor` matches `programator`",
+    ]
+    return [{"role": "user", "content": "\n".join(lines)}]
+
+
 def _default_category(name: str) -> str:
     defaults = {
         "bazos": "https://prace.bazos.cz/",

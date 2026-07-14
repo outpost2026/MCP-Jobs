@@ -67,3 +67,37 @@ def test_search_jobs_v2_unknown_portal():
     assert len(result) == 1
     assert "error" in result[0]
     assert "nonexistent" in result[0]["error"]
+
+
+# ── Prompts ──────────────────────────────────────────────────────────
+
+def test_search_expert_prompt_registered():
+    prompts = mcp._prompt_manager._prompts
+    assert "search_expert" in prompts
+
+
+def test_search_expert_basic():
+    from mcp_jobs.server import search_expert
+    result = search_expert("python developer", "Praha", 40000)
+    assert len(result) == 1
+    assert result[0]["role"] == "user"
+    content = result[0]["content"]
+    assert "Generated Boolean Query" in content
+    assert "(python) AND (developer) AND (Praha)" in content
+    assert "search_jobs_v2" in content
+
+
+def test_search_expert_with_exclude():
+    from mcp_jobs.server import search_expert
+    result = search_expert("python", exclude_terms="senior,lead")
+    content = result[0]["content"]
+    assert "NOT senior" in content
+    assert "NOT lead" in content
+
+
+def test_search_expert_no_location():
+    from mcp_jobs.server import search_expert
+    result = search_expert("python developer")
+    content = result[0]["content"]
+    assert "(python) AND (developer)" in content
+    assert "locations:" in content
