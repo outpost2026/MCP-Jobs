@@ -19,7 +19,7 @@ class JobsScraper(BaseScraper):
     def build_search_url(self, query: str) -> str:
         return f"{self.BASE_URL}/prace/?q={quote_plus(query)}"
 
-    def scrape_all(self, url: str, max_pages: int = 10) -> list[Ad]:
+    def scrape_all(self, url: str, max_pages: int = 10, params: dict[str, str] | None = None) -> list[Ad]:
         all_ads: list[Ad] = []
         seen_urls: set[str] = set()
         connector = "&" if "?" in url else "?"

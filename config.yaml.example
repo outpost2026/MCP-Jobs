@@ -1,52 +1,311 @@
-# MCP-Jobs user configuration
-# Edit this file to define your portals, categories, and search queries.
-# The engine is universal — personalization is in this YAML only.
-
-user: "default"
-
+user: default
 portals:
   jobs:
     enabled: true
     categories:
-      - url: "https://www.jobs.cz/prace/praha/"
-        pages: 3
-      - url: "https://www.jobs.cz/prace/brno/"
-        pages: 2
-
+    - url: https://www.jobs.cz/prace/praha/
+      pages: 5
+    - url: https://www.jobs.cz/prace/brno/
+      pages: 2
   bazos:
     enabled: true
     categories:
-      - url: "https://prace.bazos.cz/"
-        pages: 10
-
+    - url: https://prace.bazos.cz/
+      pages: 15
+      params:
+        hlokalita: '18000'
+        humkreis: '25'
+    - url: https://prace.bazos.cz/brigada/
+      pages: 15
+      params:
+        hlokalita: '18000'
+        humkreis: '25'
   pracecz:
     enabled: true
     categories:
-      - url: "https://www.prace.cz/nabidky/hlavni-mesto-praha/praha/"
-        pages: 5
-
+    - url: https://www.prace.cz/nabidky/hlavni-mesto-praha/praha/
+      pages: 10
   nyx:
     enabled: false
     categories: []
-
 queries:
   python_jobs:
-    boolean: "(python OR developer OR programator OR vyvojar) NOT senior"
-    exclude: ["agentura", "nabizim", "nabizime", "prodavame", "hledam praci", "hledame kolegu", "do tymu", "dodam", "firmy", "ico", "jmenuji se", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "lektor", "kurz"]
+    boolean: (python AND (developer OR vyvojar OR programator OR inzenyr OR automation
+      OR scraping OR backend OR data)) NOT senior
+    exclude:
+    - agentura
+    - nabizim
+    - nabizime
+    - prodavame
+    - hledam praci
+    - hledame kolegu
+    - do tymu
+    - dodam
+    - firmy
+    - ico
+    - jmenuji se
+    - nabor
+    - parta
+    - provadim
+    - provadime
+    - prijmeme
+    - prijima objednavky
+    - lektor
+    - kurz
     min_salary: 0
     locations: []
-    portals: ["jobs", "pracecz"]
-
+    portals:
+    - jobs
+    - pracecz
   cnc_jobs:
-    boolean: "(cnc OR frezar OR programovani OR serizovani)"
-    exclude: ["agentura", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "personalni", "pronajem", "provadim", "provadime", "prijmeme", "prijima objednavky", "ubytovn", "zprostredkovani"]
+    boolean: (cnc OR frezar OR programovani OR serizovani)
+    exclude:
+    - agentura
+    - do tymu
+    - dodam
+    - firmy
+    - hledam praci
+    - hledame kolegu
+    - ico
+    - jmenuji se
+    - nabizim
+    - nabizime
+    - nabor
+    - parta
+    - personalni
+    - pronajem
+    - provadim
+    - provadime
+    - prijmeme
+    - prijima objednavky
+    - ubytovn
+    - zprostredkovani
     min_salary: 0
-    locations: ["brno", "ostrava", "praha"]
-    portals: ["bazos", "pracecz"]
-
+    locations:
+    - brno
+    - ostrava
+    - praha
+    portals:
+    - bazos
+    - pracecz
   elektrikar:
-    boolean: "(elektrikar OR elektroinstalace OR autoelektrikar)"
-    exclude: ["agentura", "autoskola", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "prodavame", "provadim", "provadime", "prijmeme", "prijima objednavky", "revize"]
+    boolean: (elektrikar OR elektroinstalace OR autoelektrikar)
+    exclude:
+    - agentura
+    - autoskola
+    - do tymu
+    - dodam
+    - firmy
+    - hledam praci
+    - hledame kolegu
+    - ico
+    - jmenuji se
+    - nabizim
+    - nabizime
+    - nabor
+    - parta
+    - prodavame
+    - provadim
+    - provadime
+    - prijmeme
+    - prijima objednavky
+    - revize
     min_salary: 0
-    locations: ["praha"]
-    portals: ["bazos", "pracecz", "jobs"]
+    locations:
+    - praha
+    portals:
+    - bazos
+    - pracecz
+    - jobs
+  spravce:
+    boolean: (spravce OR správce OR sprava budov OR facility manager OR spravce nemovitosti
+      OR spravce arealu OR spravce objektu)
+    exclude:
+    - agentura
+    - do tymu
+    - dodam
+    - firmy
+    - hledam praci
+    - hledame kolegu
+    - ico
+    - jmenuji se
+    - nabizim
+    - nabizime
+    - nabor
+    - parta
+    - provadim
+    - provadime
+    - prijmeme
+    - prijima objednavky
+    - it
+    - server
+    - software
+    - síť
+    - sit
+    - ict
+    - linux
+    - network
+    - e-mail
+    - email
+    - informacnich
+    - informačních
+    - ne spravce
+    - ne správce
+    - vyvojar
+    - vyvojář
+    - aplikaci
+    - system
+    - systemu
+    - systemov
+    - dukovany
+    min_salary: 0
+    locations:
+    - praha
+    portals:
+    - bazos
+    - pracecz
+    - jobs
+  udrzbar:
+    boolean: (udrzbar OR udrzba OR udrzbarka OR maintenance OR servisni technik OR
+      technik udrzby OR technik udrzba OR údržbář OR údržba OR údržbářka)
+    exclude:
+    - agentura
+    - do tymu
+    - dodam
+    - firmy
+    - hledam praci
+    - hledame kolegu
+    - ico
+    - jmenuji se
+    - nabizim
+    - nabizime
+    - nabor
+    - parta
+    - provadim
+    - provadime
+    - prijmeme
+    - prijima objednavky
+    - it spravce
+    - it správce
+    - uklizec
+    - uklízeč
+    - uklid
+    - úklid
+    - ict
+    - laborator
+    - laboratoř
+    - it podpora
+    - sitovy
+    - síťový
+    - sitovy technik
+    - sitova infrastruktura
+    - sitova
+    - sitove
+    min_salary: 0
+    locations:
+    - praha
+    portals:
+    - bazos
+    - pracecz
+    - jobs
+  zahradnik:
+    boolean: (zahradnik OR zahradník OR zahradni OR sekani travy OR sekání trávy OR
+      zahradni prace OR zahradní práce OR pomohu na zahrade OR pomoc na zahradu OR
+      uprava zahrady OR zahradnicke prace OR zahradnické práce OR jarni uprava zahrady
+      OR jarní úprava zahrady)
+    exclude:
+    - agentura
+    - do tymu
+    - dodam
+    - firmy
+    - hledam praci
+    - hledame kolegu
+    - ico
+    - jmenuji se
+    - nabizim
+    - nabizime
+    - nabor
+    - parta
+    - provadim
+    - provadime
+    - prijmeme
+    - prijima objednavky
+    - uklizecka
+    - štěně
+    - steně
+    - stene
+    - kuchyn
+    - sklad
+    - restaurace
+    - nádobí
+    - nádobi
+    min_salary: 0
+    locations: []
+    portals:
+    - bazos
+  truhlar:
+    boolean: (truhlar OR truhlář OR truhlarka OR truhlářka OR vyroba nabytku OR výroba
+      nábytku OR vyroba dreveneho OR výroba dřevěného OR montaz nabytku OR montáž
+      nábytku OR drevoobrabeni OR dřevařská vyroba OR stolar OR stolař)
+    exclude:
+    - agentura
+    - brikety
+    - do tymu
+    - dodam
+    - firmy
+    - hledam praci
+    - hledame kolegu
+    - ico
+    - jmenuji se
+    - nabizim
+    - nabizime
+    - nabor
+    - odvoz
+    - palivove
+    - palivové
+    - parta
+    - prodavame
+    - prodám
+    - provadim
+    - provadime
+    - prijmeme
+    - prijima objednavky
+    - starozitne
+    - starožitné
+    - stary
+    - starý
+    - montér
+    - monter
+    min_salary: 0
+    locations: []
+    portals:
+    - bazos
+  strechy:
+    boolean: (strecha OR střecha OR pokryvac OR pokrývač OR okap OR krytina OR latovani
+      OR strechy OR střechy OR rekonstrukce strechy OR rekonstrukce střechy OR oprava
+      strechy OR oprava střechy OR cisteni okapu OR čištění okapů OR lepeni strechy)
+    exclude:
+    - agentura
+    - auto
+    - do tymu
+    - dodam
+    - firmy
+    - garaz
+    - garáž
+    - hledam praci
+    - hledame kolegu
+    - ico
+    - jmenuji se
+    - karoserie
+    - nabizim
+    - nabizime
+    - nabor
+    - parta
+    - provadim
+    - provadime
+    - prijmeme
+    - prijima objednavky
+    min_salary: 0
+    locations: []
+    portals:
+    - bazos

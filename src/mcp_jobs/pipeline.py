@@ -80,7 +80,7 @@ class SearchPipeline:
             provider = provider_cls()
             for cat in pconf.categories:
                 try:
-                    ads = provider.scrape_all(cat.url, cat.pages)
+                    ads = provider.scrape_all(cat.url, cat.pages, cat.params)
                     logger.info(f"  {portal_name}: {cat.url} -> {len(ads)} ads")
                     pool.extend(ads)
                 except Exception as e:

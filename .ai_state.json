@@ -1,0 +1,23 @@
+{
+  "repo": "MCP-Jobs",
+  "created": "2026-07-13T22:00:00+00:00",
+  "phase": "03-config-driven-pipeline",
+  "status": "active",
+  "remote": "https://github.com/outpost2026/MCP-Jobs.git",
+  "last_session": {
+    "value": "Phase 03 completed 2026-07-14: Config-driven pipeline with 8 queries (python_jobs, cnc_jobs, elektrikar, spravce, udrzbar, zahradnik, truhlar, strechy), exclude lists, boolean AND/OR/NOT/parens AST, NFKD diacritics normalization, location+salary filters. Bazos params (hlokalita/humkreis) per-category. 76/76 unit tests. Full live test: 1037 ads/37.5s, ~60 matches. Comprehensive docs in data/COMPREHENSIVE_DOCS.md. Semantic diff analysis in data/SEMANTIC_DIFF.md.",
+    "updated": "2026-07-14T15:00:00+00:00"
+  },
+  "pending": [
+    "Port EROI scoring engine from linkedin-mcp-custom",
+    "Add batch_scrape + analyze_job MCP tools",
+    "Fix double-scrape bug in SearchPipeline.run()",
+    "Add generate_report + KB write + CI/CD"
+  ],
+  "dependencies": {
+    "linkedin-mcp-custom": "EROI scoring pattern to port (analysis/ folder)",
+    "B2B-Knowledge-Base": "future KB write target",
+    "scrapers": "legacy topics.csv reference (94 keywords)"
+  },
+  "next_phase": "Phase 04 — EROI scoring + MCP tools (Q3 2026)"
+}

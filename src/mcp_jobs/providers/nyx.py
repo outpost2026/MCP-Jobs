@@ -21,7 +21,7 @@ class NyxScraper(BaseScraper):
     def build_search_url(self, query: str) -> str:
         return f"{self.BASE_URL}/?search={quote_plus(query)}&co=market"
 
-    def scrape_all(self, url: str, max_pages: int = 5) -> list[Ad]:
+    def scrape_all(self, url: str, max_pages: int = 5, params: dict[str, str] | None = None) -> list[Ad]:
         return []
 
     def parse_listings(self, html_text: str, query: str = "") -> list[Ad]:

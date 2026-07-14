@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Optional
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlencode
 
 from bs4 import BeautifulSoup
 
@@ -20,9 +20,12 @@ class BazosScraper(BaseScraper):
     def build_search_url(self, query: str) -> str:
         return f"{self.BASE_URL}/search.php?hledat={quote_plus(query)}"
 
-    def scrape_all(self, url: str, max_pages: int = 10) -> list[Ad]:
+    def scrape_all(self, url: str, max_pages: int = 10, params: dict[str, str] | None = None) -> list[Ad]:
         all_ads: list[Ad] = []
         seen_urls: set[str] = set()
+        query_suffix = ""
+        if params:
+            query_suffix = "?" + urlencode(params)
 
         for page in range(1, max_pages + 1):
             if page == 1:
@@ -30,6 +33,8 @@ class BazosScraper(BaseScraper):
             else:
                 offset = (page - 1) * 20
                 page_url = f"{url.rstrip('/')}/{offset}/"
+            if query_suffix:
+                page_url += query_suffix
 
             text = self.http.get_text(page_url)
             if not text:

@@ -11,6 +11,7 @@ import yaml
 class CategoryConfig:
     url: str
     pages: int = 5
+    params: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
