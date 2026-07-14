@@ -58,16 +58,39 @@ class UserConfig:
         if not raw:
             raise ValueError("Empty config data")
 
+        raw_portals = raw.get("portals", {})
+        if not isinstance(raw_portals, dict):
+            raise TypeError(
+                f"'portals' must be a YAML mapping (dict), got {type(raw_portals).__name__}. "
+                "Expected format:\n"
+                "  portals:\n"
+                "    portal_name:\n"
+                "      enabled: true\n"
+                "      categories:\n"
+                "        - url: \"https://...\"\n"
+                "          pages: 5"
+            )
         portals = {}
-        for name, pdata in raw.get("portals", {}).items():
+        for name, pdata in raw_portals.items():
             cats = [CategoryConfig(**c) for c in pdata.get("categories", [])]
             portals[name] = PortalConfig(
                 enabled=pdata.get("enabled", True),
                 categories=cats,
             )
 
+        raw_queries = raw.get("queries", {})
+        if not isinstance(raw_queries, dict):
+            raise TypeError(
+                f"'queries' must be a YAML mapping (dict), got {type(raw_queries).__name__}. "
+                "Expected format:\n"
+                "  queries:\n"
+                "    query_name:\n"
+                "      boolean: \"(python AND developer) NOT senior\"\n"
+                "      exclude: [\"agentura\"]\n"
+                "      portals: [\"jobs\", \"pracecz\"]"
+            )
         queries = {}
-        for name, qdata in raw.get("queries", {}).items():
+        for name, qdata in raw_queries.items():
             queries[name] = QueryConfig(**qdata)
 
         return cls(

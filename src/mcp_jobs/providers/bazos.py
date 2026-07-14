@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import quote_plus, urlencode
@@ -9,9 +11,14 @@ from bs4 import BeautifulSoup
 from ..models import Ad
 from .base import BaseScraper
 
+logger = logging.getLogger(__name__)
+
+_DATE_RE = re.compile(r"\[(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})\]")
+
 
 class BazosScraper(BaseScraper):
     BASE_URL = "https://www.bazos.cz"
+    _SUBDOMAIN_RE = re.compile(r"(https?://[^/]+)")
 
     @property
     def name(self) -> str:
@@ -20,12 +27,18 @@ class BazosScraper(BaseScraper):
     def build_search_url(self, query: str) -> str:
         return f"{self.BASE_URL}/search.php?hledat={quote_plus(query)}"
 
+    @staticmethod
+    def _extract_base(url: str) -> str:
+        m = BazosScraper._SUBDOMAIN_RE.match(url)
+        return m.group(1) if m else "https://www.bazos.cz"
+
     def scrape_all(self, url: str, max_pages: int = 10, params: dict[str, str] | None = None) -> list[Ad]:
         all_ads: list[Ad] = []
         seen_urls: set[str] = set()
         query_suffix = ""
         if params:
             query_suffix = "?" + urlencode(params)
+        base_domain = self._extract_base(url)
 
         for page in range(1, max_pages + 1):
             if page == 1:
@@ -40,7 +53,7 @@ class BazosScraper(BaseScraper):
             if not text:
                 break
 
-            ads = self.parse_listings(text, "")
+            ads = self.parse_listings(text, "", base_domain)
             new = 0
             for ad in ads:
                 if ad.url not in seen_urls:
@@ -57,37 +70,40 @@ class BazosScraper(BaseScraper):
 
         return all_ads
 
-    def parse_listings(self, html_text: str, query: str = "") -> list[Ad]:
+    def parse_listings(self, html_text: str, query: str = "", base_domain: str | None = None) -> list[Ad]:
         soup = BeautifulSoup(html_text, "html.parser")
         ads: list[Ad] = []
+        domain = base_domain or self.BASE_URL
 
-        for card in soup.select("div.inzeraty"):
+        cards = soup.select("div.inzeraty")
+        skipped = 0
+        for card in cards:
             try:
                 title_el = card.select_one("h2.nadpis a")
                 if not title_el:
                     continue
 
                 title = title_el.get_text(strip=True)
-                relative_url = title_el.get("href", "")
-                url = relative_url if relative_url.startswith("http") else f"{self.BASE_URL}/{relative_url.lstrip('/')}"
+                raw_href = title_el.get("href", "")
+                url = raw_href if raw_href.startswith("http") else f"{domain}/{raw_href.lstrip('/')}"
 
                 desc_el = card.select_one(".popis")
                 description = desc_el.get_text(strip=True) if desc_el else ""
 
-                date_el = card.select_one(".datum")
-                date = date_el.get_text(strip=True) if date_el else ""
+                date = ""
+                date_el = card.select_one("span.velikost10")
+                if date_el:
+                    m = _DATE_RE.search(date_el.get_text())
+                    if m:
+                        date = f"{m.group(1)}.{m.group(2)}.{m.group(3)}"
 
-                location = ""
-                price = ""
-                for sub in card.select(".sub, .cena, .lokace"):
-                    txt = sub.get_text(strip=True)
-                    if "Kč" in txt or txt.replace(" ", "").replace(",", ".").replace("-", "").isdigit():
-                        price = txt
-                    elif txt and not txt.startswith("http"):
-                        location = txt
+                price_el = card.select_one(".inzeratycena")
+                price = price_el.get_text(strip=True) if price_el else ""
 
-                category_el = card.select_one(".kategorie a")
-                category = category_el.get_text(strip=True) if category_el else ""
+                loc_el = card.select_one(".inzeratylok")
+                location = loc_el.get_text(strip=True) if loc_el else ""
+
+                category = ""
 
                 ad = Ad(
                     title=title,
@@ -101,7 +117,15 @@ class BazosScraper(BaseScraper):
                     matched_keyword=query,
                 )
                 ads.append(ad)
-            except Exception:
-                continue
+            except Exception as e:
+                skipped += 1
+                logger.warning("%s: failed to parse card: %s", self.name, e)
+
+        if cards and not ads:
+            logger.error(
+                "%s: found %d cards but parsed 0 ads — selector likely broken",
+                self.name, len(cards))
+        elif skipped:
+            logger.info("%s: skipped %d/%d cards", self.name, skipped, len(cards))
 
         return ads

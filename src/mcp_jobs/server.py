@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -11,6 +12,7 @@ from .matcher import Matcher
 from .pipeline import SearchPipeline
 from .providers import REGISTRY
 
+logger = logging.getLogger(__name__)
 mcp = FastMCP("MCP-Jobs")
 
 ACTIVE_PORTALS = {k: v for k, v in REGISTRY.items() if k != "nyx"}
@@ -40,6 +42,7 @@ def _run_pipeline(config: UserConfig) -> list[dict]:
         pipeline = SearchPipeline(config)
         results = pipeline.run()
     except Exception as e:
+        logger.exception("Pipeline error")
         return [{"error": f"Pipeline error: {e}"}]
 
     output = []

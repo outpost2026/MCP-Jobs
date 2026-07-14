@@ -43,28 +43,28 @@ queries:
 
   cnc_jobs:
     boolean: "(cnc OR frezar OR programovani OR serizovani)"
-    exclude: ["agentura", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "personalni", "pronajem", "provadim", "provadime", "prijmeme", "prijima objednavky", "ubytovn", "zprostredkovani"]
+    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "personalni", "pronajem", "provadim", "provadime", "prijmeme", "prijima objednavky", "ubytovn", "zprostredkovani"]
     min_salary: 0
     locations: ["brno", "ostrava", "praha"]
     portals: ["bazos", "pracecz"]
 
   elektrikar:
     boolean: "(elektrikar OR elektroinstalace OR autoelektrikar)"
-    exclude: ["agentura", "autoskola", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "prodavame", "provadim", "provadime", "prijmeme", "prijima objednavky", "revize"]
+    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "autoskola", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "prodavame", "provadim", "provadime", "prijmeme", "prijima objednavky", "revize"]
     min_salary: 0
     locations: ["praha"]
     portals: ["bazos", "pracecz", "jobs"]
 
   spravce:
     boolean: "(spravce OR správce OR sprava budov OR facility manager OR spravce nemovitosti OR spravce arealu OR spravce objektu)"
-    exclude: ["agentura", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "it", "server", "software", "síť", "sit", "ict", "linux", "network", "e-mail", "email", "informacnich", "informačních", "ne spravce", "ne správce", "vyvojar", "vyvojář", "aplikaci", "system", "systemu", "systemov", "dukovany"]
+    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "it", "server", "software", "síť", "sit", "ict", "linux", "network", "e-mail", "email", "informacnich", "informačních", "ne spravce", "ne správce", "vyvojar", "vyvojář", "aplikaci", "system", "systemu", "systemov", "dukovany"]
     min_salary: 0
     locations: ["praha"]
     portals: ["bazos", "pracecz", "jobs"]
 
   udrzbar:
     boolean: "(udrzbar OR udrzba OR udrzbarka OR maintenance OR servisni technik OR technik udrzby OR technik udrzba OR údržbář OR údržba OR údržbářka)"
-    exclude: ["agentura", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "it spravce", "it správce", "uklizec", "uklízeč", "uklid", "úklid", "ict", "laborator", "laboratoř", "it podpora", "sitovy", "síťový", "sitovy technik", "sitova infrastruktura", "sitova", "sitove"]
+    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "it spravce", "it správce", "uklizec", "uklízeč", "uklid", "úklid", "ict", "laborator", "laboratoř", "it podpora", "sitovy", "síťový", "sitovy technik", "sitova infrastruktura", "sitova", "sitove"]
     min_salary: 0
     locations: ["praha"]
     portals: ["bazos", "pracecz", "jobs"]
