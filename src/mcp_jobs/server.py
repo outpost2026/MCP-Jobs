@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 
 from . import __version__
 from .config import UserConfig
-from .matcher import Matcher
+from .matcher import Matcher, matches_ad
 from .pipeline import SearchPipeline
 from .providers import ACTIVE_PORTALS
 
@@ -104,6 +103,7 @@ def search_jobs_v2(
     portal: str = "vše",
     pages: int = 3,
 ) -> list[dict]:
+    pages = max(1, min(pages, 50))
     portal_key = PORTAL_ALIASES.get(portal.lower().strip(), portal.lower().strip())
     portals_to_search: list[str] = []
 
@@ -125,18 +125,19 @@ def search_jobs_v2(
             category_url = _default_category(name)
             ads = provider.scrape_all(category_url, pages)
 
-            from .matcher import matches_ad
             for ad in ads:
                 if matches_ad(ad, query):
                     results.append(ad.to_dict())
         except Exception as e:
             errors.append(f"{name}: {e}")
 
-    if not results and not errors:
+    if not results:
+        if errors:
+            return [{"error": f"Portal errors: {' | '.join(errors)}"}]
         return [{"message": f"No results found for '{query}'."}]
 
     output = [{"query": query, "portal": portal, "total_found": len(results), "results": results}]
-    if errors:
+    if errors and results:
         output[0]["errors"] = errors
     return output
 

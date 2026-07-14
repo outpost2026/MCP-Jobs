@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import logging
 import re
 import unicodedata
@@ -138,6 +139,7 @@ class _Parser:
         raise ValueError(f"Unexpected token: {tok}")
 
 
+@functools.lru_cache(maxsize=128)
 def parse_boolean(expression: str) -> _Node:
     tokens = _tokenize(expression)
     parser = _Parser(tokens)

@@ -23,7 +23,7 @@ portals:
 
 queries:
   python_jobs:
-    boolean: "python AND developer NOT senior"
+    boolean: "python AND developer AND NOT senior"
     min_salary: 0
     locations: []
     portals: ["jobs"]
@@ -77,7 +77,7 @@ def test_config_queries():
     assert "cnc_jobs" in config.queries
 
     py = config.queries["python_jobs"]
-    assert py.boolean == "python AND developer NOT senior"
+    assert py.boolean == "python AND developer AND NOT senior"
     assert py.min_salary == 0
     assert py.locations == []
     assert py.portals == ["jobs"]
@@ -135,3 +135,24 @@ def test_from_yaml_string_invalid_yaml():
     import pytest
     with pytest.raises(Exception):
         UserConfig.from_yaml_string(": broken yaml :")
+
+
+def test_from_yaml_malformed_boolean_logged():
+    """Malformed boolean expression triggers warning but does not crash."""
+    from pathlib import Path
+    import tempfile
+    yaml = """
+    portals: {}
+    queries:
+      bad_query:
+        boolean: "python AND AND java"
+    """
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
+        f.write(yaml)
+        tmp = f.name
+    try:
+        config = UserConfig.from_yaml(Path(tmp))
+        assert "bad_query" in config.queries
+        assert config.queries["bad_query"].boolean == "python AND AND java"
+    finally:
+        Path(tmp).unlink(missing_ok=True)

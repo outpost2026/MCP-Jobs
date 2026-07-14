@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 import yaml
+
+from .matcher import validate_boolean
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -72,7 +77,10 @@ class UserConfig:
             )
         portals = {}
         for name, pdata in raw_portals.items():
-            cats = [CategoryConfig(**c) for c in pdata.get("categories", [])]
+            try:
+                cats = [CategoryConfig(**c) for c in pdata.get("categories", [])]
+            except TypeError as e:
+                raise TypeError(f"Portal {name!r}: invalid category config: {e}") from e
             portals[name] = PortalConfig(
                 enabled=pdata.get("enabled", True),
                 categories=cats,
@@ -91,7 +99,13 @@ class UserConfig:
             )
         queries = {}
         for name, qdata in raw_queries.items():
-            queries[name] = QueryConfig(**qdata)
+            try:
+                qc = QueryConfig(**qdata)
+            except TypeError as e:
+                raise TypeError(f"Query {name!r}: invalid query config: {e}") from e
+            if qc.boolean and not validate_boolean(qc.boolean):
+                logger.warning("Query %r has malformed boolean expression: %r", name, qc.boolean)
+            queries[name] = qc
 
         return cls(
             user=raw.get("user", "default"),

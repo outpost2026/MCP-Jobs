@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Optional
 
 import requests
@@ -25,8 +26,11 @@ class HttpClient:
         timeout: int = 30,
         retries: int = 3,
         backoff_factor: float = 0.5,
+        request_delay: float = 1.0,
     ):
         self.timeout = timeout
+        self.request_delay = request_delay
+        self._last_request: float = 0.0
         self.session = requests.Session()
         self.session.headers.update(headers or self.DEFAULT_HEADERS)
 
@@ -40,8 +44,15 @@ class HttpClient:
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
 
+    def _throttle(self) -> None:
+        elapsed = time.time() - self._last_request
+        if elapsed < self.request_delay:
+            time.sleep(self.request_delay - elapsed)
+        self._last_request = time.time()
+
     def get_soup(self, url: str, parser: str = "html.parser") -> Optional[BeautifulSoup]:
         try:
+            self._throttle()
             resp = self.session.get(url, timeout=self.timeout)
             resp.raise_for_status()
             resp.encoding = resp.apparent_encoding or "utf-8"
@@ -51,6 +62,7 @@ class HttpClient:
 
     def get_text(self, url: str) -> Optional[str]:
         try:
+            self._throttle()
             resp = self.session.get(url, timeout=self.timeout)
             resp.raise_for_status()
             resp.encoding = resp.apparent_encoding or "utf-8"
