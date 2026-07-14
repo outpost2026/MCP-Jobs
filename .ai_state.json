@@ -1,23 +1,23 @@
 {
   "repo": "MCP-Jobs",
   "created": "2026-07-13T22:00:00+00:00",
-  "phase": "03-config-driven-pipeline",
+  "phase": "04-hardening",
   "status": "active",
   "remote": "https://github.com/outpost2026/MCP-Jobs.git",
   "last_session": {
-    "value": "Phase 03 completed 2026-07-14: Config-driven pipeline with 8 queries (python_jobs, cnc_jobs, elektrikar, spravce, udrzbar, zahradnik, truhlar, strechy), exclude lists, boolean AND/OR/NOT/parens AST, NFKD diacritics normalization, location+salary filters. Bazos params (hlokalita/humkreis) per-category. 76/76 unit tests. Full live test: 1037 ads/37.5s, ~60 matches. Comprehensive docs in data/COMPREHENSIVE_DOCS.md. Semantic diff analysis in data/SEMANTIC_DIFF.md.",
-    "updated": "2026-07-14T15:00:00+00:00"
+    "value": "Iteration 4 completed 2026-07-14: 7 hardening fixes (N1 AST cache, N4 pages guard, N5 rate limiting, N6 auto-validate boolean, N7 MCP error kontrakt, N8 config errors, N11 lint). 97/97 tests. Cross-LLM audit: 3 modely (v0.3 Claude, Sonnet 5.0, peer review) — N1 nejcennější nález. Pipeline: 46.2s / 35 matched / 1073 raw. v0.3.1 tagged. feature/v2 branch active.",
+    "updated": "2026-07-14T22:45:00+00:00"
   },
   "pending": [
-    "Port EROI scoring engine from linkedin-mcp-custom",
-    "Add batch_scrape + analyze_job MCP tools",
-    "Fix double-scrape bug in SearchPipeline.run()",
-    "Add generate_report + KB write + CI/CD"
+    "Security threat model (chybějící layer všech auditů)",
+    "L2 Resources (mcp-jobs://ads/{query_id})",
+    "Hosted demo (Railway/Render)",
+    "LinkedIn Analyzer integrace",
+    "CI/CD (GitHub Actions)"
   ],
   "dependencies": {
-    "linkedin-mcp-custom": "EROI scoring pattern to port (analysis/ folder)",
-    "B2B-Knowledge-Base": "future KB write target",
-    "scrapers": "legacy topics.csv reference (94 keywords)"
+    "linkedin-mcp-custom": "EROI scoring pattern + cross-MCP integrace",
+    "B2B-Knowledge-Base": "pitevni knihy, KB write target"
   },
-  "next_phase": "Phase 04 — EROI scoring + MCP tools (Q3 2026)"
+  "next_phase": "Phase 05 — Security hardening + L2 Resources + hosted demo"
 }
