@@ -8,12 +8,13 @@ from mcp_jobs.providers import ACTIVE_PORTALS
 
 BAZOS_HTML = """
 <div class="inzeraty">
-    <h2 class="nadpis"><a href="/detail/123">Python Developer</a></h2>
-    <div class="datum">2026-07-13</div>
+    <div class="inzeratynadpis">
+        <h2 class="nadpis"><a href="/detail/123">Python Developer</a></h2>
+        <span class="velikost10"> -TOP- [13.7.2026]</span>
+    </div>
     <div class="popis">We need a Python developer for automation</div>
-    <div class="sub">Praha</div>
-    <div class="cena">50000 Kč</div>
-    <div class="kategorie"><a>IT</a></div>
+    <div class="inzeratycena">50000 Kč</div>
+    <div class="inzeratylok">Praha</div>
 </div>
 """
 
@@ -73,7 +74,7 @@ def test_bazos_parse_listings():
     assert len(ads) == 1
     assert ads[0].title == "Python Developer"
     assert ads[0].url == "https://www.bazos.cz/detail/123"
-    assert ads[0].date == "2026-07-13"
+    assert ads[0].date == "13.7.2026"
     assert ads[0].description == "We need a Python developer for automation"
     assert ads[0].price == "50000 Kč"
     assert ads[0].matched_keyword == "python"

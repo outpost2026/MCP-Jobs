@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import quote_plus, urlencode
@@ -11,6 +12,8 @@ from ..models import Ad
 from .base import BaseScraper
 
 logger = logging.getLogger(__name__)
+
+_DATE_RE = re.compile(r"\[(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})\]")
 
 
 class BazosScraper(BaseScraper):
@@ -79,20 +82,20 @@ class BazosScraper(BaseScraper):
                 desc_el = card.select_one(".popis")
                 description = desc_el.get_text(strip=True) if desc_el else ""
 
-                date_el = card.select_one(".datum")
-                date = date_el.get_text(strip=True) if date_el else ""
+                date = ""
+                date_el = card.select_one("span.velikost10")
+                if date_el:
+                    m = _DATE_RE.search(date_el.get_text())
+                    if m:
+                        date = f"{m.group(1)}.{m.group(2)}.{m.group(3)}"
 
-                location = ""
-                price = ""
-                for sub in card.select(".sub, .cena, .lokace"):
-                    txt = sub.get_text(strip=True)
-                    if "Kč" in txt or txt.replace(" ", "").replace(",", ".").replace("-", "").isdigit():
-                        price = txt
-                    elif txt and not txt.startswith("http"):
-                        location = txt
+                price_el = card.select_one(".inzeratycena")
+                price = price_el.get_text(strip=True) if price_el else ""
 
-                category_el = card.select_one(".kategorie a")
-                category = category_el.get_text(strip=True) if category_el else ""
+                loc_el = card.select_one(".inzeratylok")
+                location = loc_el.get_text(strip=True) if loc_el else ""
+
+                category = ""
 
                 ad = Ad(
                     title=title,
