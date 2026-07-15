@@ -20,6 +20,82 @@ OUTPUT_DIR = Path("output")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
+def _write_markdown_report(output: dict, ts: str) -> Path:
+    """Generate high-SNR human-readable MD report with clickable links."""
+    lines: list[str] = []
+    _a = lines.append
+
+    _a("# MCP-Jobs Pipeline Report")
+    _a("")
+    _a(f"**Spuštěno:** {output['timestamp']} | **Trvání:** {output['elapsed_seconds']}s | **Matched:** {output['total_matched']}")
+    portals = ", ".join(output["config"]["portals"])
+    queries = ", ".join(output["config"]["queries"])
+    _a(f"**Portály:** {portals} | **Query:** {queries}")
+    _a("")
+
+    _a("## Přehled")
+    _a("")
+    _a("| # | Query | Počet | Portály |")
+    _a("|---|-------|-------|---------|")
+
+    summary = output["summary"]
+    sorted_queries = sorted(summary.items(), key=lambda x: -x[1]["count"])
+    for idx, (qname, qdata) in enumerate(sorted_queries, 1):
+        portals_str = ", ".join(qdata["portals"])
+        _a(f"| {idx} | {qname} | {qdata['count']} | {portals_str} |")
+
+    _a("")
+
+    for idx, (qname, qdata) in enumerate(sorted_queries, 1):
+        if qdata["count"] == 0:
+            _a(f"## {idx}. {qname} — 0 matchingů")
+            _a("")
+            continue
+
+        portals_str = ", ".join(qdata["portals"])
+        _a(f"## {idx}. {qname} — {qdata['count']} matchingů")
+        _a("")
+        _a(f"Portály: {portals_str}")
+        _a("")
+
+        sample = qdata["sample"]
+        for si, ad in enumerate(sample, 1):
+            title = ad.get("title", "Inzerát")
+            url = ad.get("url", "")
+            if url:
+                _a(f"{si}. **[{title}]({url})**")
+            else:
+                _a(f"{si}. **{title}**")
+
+            meta_parts = []
+            if ad.get("salary"):
+                meta_parts.append(f"{ad['salary']}")
+            if ad.get("company"):
+                meta_parts.append(ad["company"])
+            if ad.get("location"):
+                meta_parts.append(ad["location"])
+            if ad.get("portal"):
+                meta_parts.append(f"({ad['portal']})")
+            if meta_parts:
+                _a(f"   — {' | '.join(meta_parts)}")
+
+        _a("")
+
+        # Show count note if there are more ads beyond the sample
+        if qdata["count"] > 5:
+            _a(f"> +{qdata['count'] - 5} dalších inzerátů (celkem {qdata['count']})")
+            _a("")
+
+    md_path = OUTPUT_DIR / f"etl_{ts}.md"
+    md_path.write_text("\n".join(lines), encoding="utf-8")
+
+    # Update latest
+    latest_md = OUTPUT_DIR / "etl_latest.md"
+    latest_md.write_text("\n".join(lines), encoding="utf-8")
+
+    return md_path
+
+
 def main() -> None:
     config = UserConfig.from_yaml("config.yaml")
 
@@ -83,6 +159,11 @@ def main() -> None:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
     print(f"\nSaved: {path} ({len(output['results'])} queries)", file=sys.stderr)
+
+    # Markdown human-readable report
+    md_path = _write_markdown_report(output, ts) if total_ads else None
+    if md_path:
+        print(f"Report: {md_path}", file=sys.stderr)
 
 
 if __name__ == "__main__":
