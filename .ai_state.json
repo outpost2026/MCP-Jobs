@@ -1,23 +1,26 @@
 {
   "repo": "MCP-Jobs",
   "created": "2026-07-13T22:00:00+00:00",
-  "phase": "04-hardening",
+  "phase": "05-l2-resources",
   "status": "active",
   "remote": "https://github.com/outpost2026/MCP-Jobs.git",
   "last_session": {
-    "value": "Iteration 4 completed 2026-07-14: 7 hardening fixes (N1 AST cache, N4 pages guard, N5 rate limiting, N6 auto-validate boolean, N7 MCP error kontrakt, N8 config errors, N11 lint). 97/97 tests. Cross-LLM audit: 3 modely (v0.3 Claude, Sonnet 5.0, peer review) — N1 nejcennější nález. Pipeline: 46.2s / 35 matched / 1073 raw. v0.3.1 tagged. feature/v2 branch active.",
-    "updated": "2026-07-14T22:45:00+00:00"
+    "value": "Iteration 5 completed 2026-07-15: L2 Resources (mcp-jobs://ads/{query_id}, /list, /report) + PowerShell/cp1250 encoding 6-layer mitigation stack. root cause: CommandLineToArgvW argument splitting + cp1250 console. fix: .bat PYTHONIOENCODING, cli.py ensure_utf8_stdout(), .ai_guardrails.json shell_rules, opencode.jsonc -X utf8, _init.ps1 + $PROFILE autoload, docs/powershell_encoding.md. Synthetic guardrail tests: 12/12 PASS. 103/103 unit tests. v0.4.0 tagged. feature/v2 branch active.",
+    "updated": "2026-07-15T07:30:00+00:00"
   },
   "pending": [
     "Security threat model (chybějící layer všech auditů)",
-    "L2 Resources (mcp-jobs://ads/{query_id})",
     "Hosted demo (Railway/Render)",
     "LinkedIn Analyzer integrace",
     "CI/CD (GitHub Actions)"
+  ],
+  "completed": [
+    "L2 Resources (mcp-jobs://ads/{query_id}, /list, /report)",
+    "PowerShell/cp1250 encoding 6-layer mitigation stack"
   ],
   "dependencies": {
     "linkedin-mcp-custom": "EROI scoring pattern + cross-MCP integrace",
     "B2B-Knowledge-Base": "pitevni knihy, KB write target"
   },
-  "next_phase": "Phase 05 — Security hardening + L2 Resources + hosted demo"
+  "next_phase": "Phase 06 — Security hardening + hosted demo"
 }

@@ -2,8 +2,13 @@
 
 import sys
 
+from .utils import ensure_utf8_stdout
+
 
 def main():
+    # P18: Console encoding safety — Windows cp1250 nepodporuje Unicode > U+00FF
+    ensure_utf8_stdout()
+
     from .server import mcp
 
     if "--help" in sys.argv or "-h" in sys.argv:

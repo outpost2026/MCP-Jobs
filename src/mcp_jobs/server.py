@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 import logging
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -8,11 +11,30 @@ from mcp.server.fastmcp import FastMCP
 from . import __version__
 from .config import UserConfig
 from .matcher import Matcher, matches_ad
+from .models import Ad
 from .pipeline import SearchPipeline
 from .providers import ACTIVE_PORTALS
+from .storage import Storage
+from .utils import ensure_utf8_stdout
+
+# P18: Console encoding safety — Windows cp1250 before any output
+ensure_utf8_stdout()
 
 logger = logging.getLogger(__name__)
 mcp = FastMCP("MCP-Jobs")
+
+# ── L2 Resource store ─────────────────────────────────────────────
+_query_store: dict[str, dict] = {}
+
+
+def _store_results(results_data: list[dict]) -> str:
+    query_id = uuid.uuid4().hex[:8]
+    _query_store[query_id] = {
+        "data": results_data,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "type": "search_results",
+    }
+    return query_id
 
 PORTAL_ALIASES: dict[str, str] = {
     "vše": "vše",
@@ -31,7 +53,7 @@ def health_check() -> dict:
         "status": "ok",
         "server": "mcp-jobs",
         "version": __version__,
-        "phase": "03-category-bulk",
+        "phase": "05-l2-resources",
     }
 
 
@@ -50,7 +72,13 @@ def _run_pipeline(config: UserConfig) -> list[dict]:
             "total_found": len(ads),
             "results": [a.to_dict() for a in ads],
         })
-    return output if output else [{"message": "No results found."}]
+    if not output:
+        return [{"message": "No results found."}]
+
+    query_id = _store_results(output)
+    output[0]["query_id"] = query_id
+    output[0]["resource_uri"] = f"mcp-jobs://ads/{query_id}"
+    return output
 
 
 @mcp.tool(
@@ -139,6 +167,10 @@ def search_jobs_v2(
     output = [{"query": query, "portal": portal, "total_found": len(results), "results": results}]
     if errors and results:
         output[0]["errors"] = errors
+
+    query_id = _store_results(output)
+    output[0]["query_id"] = query_id
+    output[0]["resource_uri"] = f"mcp-jobs://ads/{query_id}"
     return output
 
 
@@ -154,6 +186,87 @@ def list_portals() -> list[dict]:
         }
         for name in ACTIVE_PORTALS
     ]
+
+
+# ── L2 Resources ──────────────────────────────────────────────────
+
+
+@mcp.resource(
+    uri="mcp-jobs://ads/list",
+    name="ads_list",
+    title="Available Search Results",
+    description="List all available query result sets stored in this session",
+    mime_type="application/json",
+)
+def list_ads_resources() -> str:
+    entries = [
+        {
+            "query_id": qid,
+            "timestamp": info["timestamp"],
+            "query_count": len(info["data"]),
+            "uris": [
+                f"mcp-jobs://ads/{qid}",
+                f"mcp-jobs://ads/{qid}/report",
+            ],
+        }
+        for qid, info in _query_store.items()
+    ]
+    return json.dumps(entries, ensure_ascii=False, indent=2)
+
+
+@mcp.resource(
+    uri="mcp-jobs://ads/{query_id}",
+    name="ads_by_id",
+    title="Search Results by Query ID",
+    description="Retrieve search results as JSON by query ID",
+    mime_type="application/json",
+)
+def get_ads_resource(query_id: str) -> str:
+    if query_id not in _query_store:
+        raise ValueError(
+            f"Unknown query_id '{query_id}'. "
+            f"Use mcp-jobs://ads/list to see available IDs."
+        )
+    return json.dumps(_query_store[query_id]["data"], ensure_ascii=False, indent=2)
+
+
+@mcp.resource(
+    uri="mcp-jobs://ads/{query_id}/report",
+    name="ads_report_by_id",
+    title="Search Results Report (Markdown)",
+    description="Retrieve search results as a markdown report by query ID",
+    mime_type="text/markdown",
+)
+def get_ads_report_resource(query_id: str) -> str:
+    if query_id not in _query_store:
+        raise ValueError(
+            f"Unknown query_id '{query_id}'. "
+            f"Use mcp-jobs://ads/list to see available IDs."
+        )
+
+    data = _query_store[query_id]["data"]
+    timestamp = _query_store[query_id]["timestamp"]
+
+    # Reconstruct Ad objects for markdown generation
+    all_ads: list[Ad] = []
+    for entry in data:
+        for ad_dict in entry.get("results", []):
+            all_ads.append(Ad(
+                title=ad_dict.get("title", ""),
+                url=ad_dict.get("url", ""),
+                portal=ad_dict.get("portal", ""),
+                company=ad_dict.get("company"),
+                location=ad_dict.get("location"),
+                salary=ad_dict.get("salary"),
+                price=ad_dict.get("price"),
+                description=ad_dict.get("description"),
+                matched_keyword=ad_dict.get("matched_keyword", ""),
+                scraped_at=ad_dict.get("scraped_at", ""),
+            ))
+
+    report = Storage.markdown_report(all_ads)
+    header = f"> Generated: {timestamp} | Queries: {len(data)} | Total ads: {len(all_ads)}\n\n"
+    return header + report
 
 
 @mcp.prompt(

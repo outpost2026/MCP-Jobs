@@ -198,7 +198,7 @@ Každý ETL běh generuje JSON s per-provider timingem:
 | Level | Status |
 |-------|--------|
 | L1 — Tools | ✅ 5 MCP tools |
-| L2 — Resources | ⬜ Plánováno (mcp-jobs://ads/{query_id}) |
+| L2 — Resources | ✅ `mcp-jobs://ads/{query_id}`, `mcp-jobs://ads/{query_id}/report`, `mcp-jobs://ads/list` |
 | L3 — Prompts | ✅ `search_expert` prompt |
 | L4 — Streaming | ⬜ Plánováno (progress reporting) |
 

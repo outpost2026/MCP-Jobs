@@ -1,5 +1,17 @@
+import json
+
 from mcp_jobs import __version__
-from mcp_jobs.server import mcp, list_portals, PORTAL_ALIASES, ACTIVE_PORTALS
+from mcp_jobs.server import (
+    mcp,
+    list_portals,
+    PORTAL_ALIASES,
+    ACTIVE_PORTALS,
+    _query_store,
+    _store_results,
+    list_ads_resources,
+    get_ads_resource,
+    get_ads_report_resource,
+)
 
 
 def test_health_check():
@@ -8,7 +20,7 @@ def test_health_check():
     assert result["status"] == "ok"
     assert result["server"] == "mcp-jobs"
     assert result["version"] == __version__
-    assert result["phase"] == "03-category-bulk"
+    assert result["phase"] == "05-l2-resources"
 
 
 def test_server_instance():
@@ -19,6 +31,15 @@ def test_server_instance():
     assert "search_from_yaml" in tools
     assert "search_jobs_v2" in tools
     assert "list_portals" in tools
+
+    resources = mcp._resource_manager._resources
+    templates = mcp._resource_manager._templates
+    resource_names = {r.name for r in resources.values() if r.name}
+    template_names = {t.name for t in templates.values() if t.name}
+    all_resources = resource_names | template_names
+    assert "ads_list" in all_resources
+    assert "ads_by_id" in all_resources
+    assert "ads_report_by_id" in all_resources
 
 
 def test_active_portals_no_nyx():
@@ -101,3 +122,62 @@ def test_search_expert_no_location():
     content = result[0]["content"]
     assert "(python) AND (developer)" in content
     assert "locations:" in content
+
+
+# ── L2 Resources ────────────────────────────────────────────────
+
+
+def test_store_and_list_resources():
+    _query_store.clear()
+    qid = _store_results([{"query": "test", "total_found": 1, "results": [{"title": "Test Ad"}]}])
+    assert len(qid) == 8
+
+    listing = json.loads(list_ads_resources())
+    assert len(listing) == 1
+    assert listing[0]["query_id"] == qid
+
+
+def test_get_ads_resource():
+    _query_store.clear()
+    data = [{"query": "test", "total_found": 1, "results": [{"title": "Python Dev", "url": "https://example.com/job"}]}]
+    qid = _store_results(data)
+
+    raw = get_ads_resource(qid)
+    parsed = json.loads(raw)
+    assert len(parsed) == 1
+    assert parsed[0]["results"][0]["title"] == "Python Dev"
+
+
+def test_get_ads_resource_unknown():
+    _query_store.clear()
+    try:
+        get_ads_resource("deadbeef")
+        assert False, "Expected ValueError"
+    except ValueError as e:
+        assert "deadbeef" in str(e)
+
+
+def test_get_ads_report_resource():
+    _query_store.clear()
+    data = [{"query": "test", "total_found": 1, "results": [{"title": "Python Dev", "url": "https://example.com/job", "portal": "jobs"}]}]
+    qid = _store_results(data)
+
+    report = get_ads_report_resource(qid)
+    assert "Python Dev" in report
+    assert "Generated" in report
+
+
+def test_store_results_empty_list():
+    _query_store.clear()
+    qid = _store_results([])
+    listing = json.loads(list_ads_resources())
+    assert len(listing) == 1
+    assert listing[0]["query_count"] == 0
+
+
+def test_resource_uris_in_search_output():
+    """search_jobs_v2 with unknown portal should NOT have query_id."""
+    from mcp_jobs.server import search_jobs_v2
+    result = search_jobs_v2("python", portal="nonexistent")
+    assert "query_id" not in result[0]
+    assert "resource_uri" not in result[0]
