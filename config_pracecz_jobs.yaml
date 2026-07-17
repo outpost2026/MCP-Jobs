@@ -1,0 +1,73 @@
+user: "default"
+
+portals:
+  jobs:
+    enabled: true
+    categories:
+      - url: "https://www.jobs.cz/prace/praha/"
+        pages: 20
+      - url: "https://www.jobs.cz/prace/brno/"
+        pages: 20
+
+  pracecz:
+    enabled: true
+    categories:
+      - url: "https://www.prace.cz/nabidky/hlavni-mesto-praha/praha/"
+        pages: 20
+
+queries:
+  python_jobs:
+    boolean: "(python AND (developer OR vyvojar OR programator OR inzenyr OR automation OR scraping OR backend OR data)) AND NOT senior"
+    exclude: ["agentura", "nabizim", "nabizime", "prodavame", "hledam praci", "hledame kolegu", "do tymu", "dodam", "firmy", "ico", "jmenuji se", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "lektor", "kurz"]
+    min_salary: 0
+    locations: []
+    portals: ["jobs", "pracecz"]
+
+  cnc_jobs:
+    boolean: "(cnc OR frezar OR programovani OR serizovani)"
+    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "personalni", "pronajem", "provadim", "provadime", "prijmeme", "prijima objednavky", "ubytovn", "zprostredkovani"]
+    min_salary: 0
+    locations: ["brno", "ostrava", "praha"]
+    portals: ["pracecz"]
+
+  elektrikar:
+    boolean: "(elektrikar OR elektroinstalace OR autoelektrikar)"
+    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "autoskola", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "prodavame", "provadim", "provadime", "prijmeme", "prijima objednavky", "revize"]
+    min_salary: 0
+    locations: ["praha"]
+    portals: ["pracecz", "jobs"]
+
+  spravce:
+    boolean: "(spravce OR správce OR (sprava AND budov) OR (facility AND manager) OR (spravce AND nemovitosti) OR (spravce AND arealu) OR (spravce AND objektu))"
+    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "it", "server", "software", "sít", "sit", "ict", "linux", "network", "e-mail", "email", "informacnich", "informačních", "ne spravce", "ne správce", "vyvojar", "vyvojář", "aplikaci", "system", "systemu", "systemov", "dukovany"]
+    min_salary: 0
+    locations: ["praha"]
+    portals: ["pracecz", "jobs"]
+
+  udrzbar:
+    boolean: "(udrzbar OR udrzba OR udrzbarka OR maintenance OR (servisni AND technik) OR (technik AND udrzby) OR (technik AND udrzba) OR údržbář OR údržba OR údržbářka)"
+    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "it spravce", "it správce", "uklizec", "uklízeč", "uklid", "úklid", "ict", "laborator", "laboratoř", "it podpora", "sitovy", "síťový", "sitovy technik", "sitova infrastruktura", "sitova", "sitove"]
+    min_salary: 0
+    locations: ["praha"]
+    portals: ["pracecz", "jobs"]
+
+  zahradnik:
+    boolean: "(zahradnik OR zahradník OR zahradni OR (sekani AND travy) OR (sekání AND trávy) OR (zahradni AND prace) OR (zahradní AND práce) OR (pomohu AND na AND zahrade) OR (pomoc AND na AND zahradu) OR (uprava AND zahrady) OR (zahradnické AND prace) OR (jarni AND uprava AND zahrady) OR (jarní AND úprava AND zahrady))"
+    exclude: ["agentura", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "uklizecka", "štěně", "steně", "stene", "kuchyn", "sklad", "restaurace", "nádobí", "nádobi"]
+    min_salary: 0
+    locations: []
+    portals: ["jobs", "pracecz"]
+
+  truhlar:
+    boolean: "(truhlar OR truhlář OR truhlarka OR truhlářka OR (vyroba AND nabytku) OR (výroba AND nábytku) OR (vyroba AND dreveneho) OR (výroba AND dřevěného) OR (montaz AND nabytku) OR (montáž AND nábytku) OR drevoobrabeni OR (dřevařská AND vyroba) OR stolar OR stolař)"
+    exclude: ["agentura", "brikety", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "odvoz", "palivove", "palivové", "parta", "prodavame", "prodám", "provadim", "provadime", "prijmeme", "prijima objednavky", "starozitne", "starožitné", "stary", "starý", "montér", "monter"]
+    min_salary: 0
+    locations: []
+    portals: ["jobs", "pracecz"]
+
+  strechy:
+    boolean: "(strecha OR střecha OR pokryvac OR pokrývač OR okap OR krytina OR latovani OR strechy OR střechy OR (rekonstrukce AND strechy) OR (rekonstrukce AND střechy) OR (oprava AND strechy) OR (oprava AND střechy) OR (cisteni AND okapu) OR (čištění AND okapů) OR (lepeni AND strechy))"
+    exclude: ["agentura", "auto", "do tymu", "dodam", "firmy", "garaz", "garáž", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "karoserie", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky"]
+    min_salary: 0
+    locations: []
+    portals: ["jobs", "pracecz"]

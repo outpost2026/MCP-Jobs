@@ -1,6 +1,7 @@
 """Run full ETL pipeline and save timestamped results."""
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import sys
@@ -97,7 +98,10 @@ def _write_markdown_report(output: dict, ts: str) -> Path:
 
 
 def main() -> None:
-    config = UserConfig.from_yaml("config.yaml")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default="config.yaml", help="Path to YAML config file")
+    args = parser.parse_args()
+    config = UserConfig.from_yaml(args.config)
 
     ts = time.strftime("%Y%m%d_%H%M%S")
     print(f"=== MCP-Jobs ETL | {ts} ===", file=sys.stderr)
