@@ -224,9 +224,15 @@ def scrape_legacy_equivalent() -> dict:
 
 def safe_print(text):
     try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, LookupError):
+        pass
+    try:
         print(text)
     except UnicodeEncodeError:
-        print(text.encode("utf-8", errors="replace").decode("utf-8"))
+        console_enc = sys.stdout.encoding or "utf-8"
+        safe = text.encode(console_enc, errors="replace").decode(console_enc, errors="replace")
+        print(safe)
 
 
 def analyze_coverage(pool: dict):
@@ -333,13 +339,6 @@ def main():
     print("PHASE 1: Legacy 94-topic coverage (first-match-wins)")
     print("=" * 60)
     coverage = analyze_coverage(pool)
-
-    # Print summary (avoid encoding issues)
-    def safe_print(text):
-        try:
-            print(text)
-        except UnicodeEncodeError:
-            print(text.encode("utf-8", errors="replace").decode("utf-8"))
 
     for portal_name, stats in coverage["per_portal"].items():
         safe_print(f"\n{portal_name}: {stats['matched']}/{stats['total']} matched ({stats['unmatched']} unmatched)")

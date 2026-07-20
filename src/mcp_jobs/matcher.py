@@ -113,9 +113,12 @@ class _Parser:
 
     def _parse_term(self) -> _Node:
         left = self._parse_factor()
-        while self.peek()[0] == "AND":
+        while self.peek()[0] in ("AND", "NOT"):
+            op = self.peek()[0]
             self.consume()
             right = self._parse_factor()
+            if op == "NOT":
+                right = _Not(right)
             left = _And(left, right)
         return left
 
