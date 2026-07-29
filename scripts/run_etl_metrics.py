@@ -1,4 +1,5 @@
 """Full ETL pipeline with detailed per-provider metrics."""
+
 from __future__ import annotations
 
 import json
@@ -6,7 +7,7 @@ import logging
 import sys
 import time
 from pathlib import Path
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -16,6 +17,7 @@ logging.basicConfig(
 
 from mcp_jobs.config import UserConfig
 from mcp_jobs.pipeline import SearchPipeline
+from mcp_jobs.storage import CorrelationRecord, Storage
 
 OUTPUT_DIR = Path("output")
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -28,9 +30,10 @@ class TimedPipeline(SearchPipeline):
         super().__init__(config)
         self.provider_stats: dict[str, dict] = {}
 
-    def _scrape_all(self) -> list:
+    def _scrape_all(self) -> tuple[list, dict, dict]:
         from mcp_jobs.providers import REGISTRY
         from mcp_jobs.pipeline import _dedup as dd
+
         pool = []
         for portal_name, pconf in self.config.portals.items():
             if not pconf.enabled:
@@ -39,12 +42,15 @@ class TimedPipeline(SearchPipeline):
             if not cls:
                 continue
             provider = cls()
-            for cat in (pconf.categories or []):
+            for cat in pconf.categories or []:
                 t0 = time.time()
                 try:
                     ads = provider.scrape_all(cat.url, cat.pages, cat.params)
                     t1 = time.time()
-                    print(f"  {portal_name}: +{len(ads)} ads in {t1-t0:.1f}s", file=sys.stderr)
+                    print(
+                        f"  {portal_name}: +{len(ads)} ads in {t1 - t0:.1f}s",
+                        file=sys.stderr,
+                    )
                     pool.extend(ads)
                     self.provider_stats[f"{portal_name}/{cat.url[:40]}"] = {
                         "portal": portal_name,
@@ -63,41 +69,71 @@ class TimedPipeline(SearchPipeline):
                         "pages": cat.pages,
                         "error": str(e)[:200],
                     }
-        return dd(pool)
+        deduped = dd(pool)
+        pool_sizes: dict[str, int] = {}
+        for ad in deduped:
+            pool_sizes[ad.portal] = pool_sizes.get(ad.portal, 0) + 1
+        return deduped, {}, pool_sizes
 
 
 def main() -> None:
     config = UserConfig.from_yaml("config.yaml")
     ts = time.strftime("%Y%m%d_%H%M%S")
     print(f"=== MCP-Jobs ETL Metrics | {ts} ===", file=sys.stderr)
-    
+
     # ── Config overview ──
     total_categories = sum(len(p.categories or []) for p in config.portals.values())
     print(file=sys.stderr)
     print(f"Configuration:", file=sys.stderr)
-    print(f"  Portals enabled: {sum(1 for p in config.portals.values() if p.enabled)}", file=sys.stderr)
+    print(
+        f"  Portals enabled: {sum(1 for p in config.portals.values() if p.enabled)}",
+        file=sys.stderr,
+    )
     for name, portal in config.portals.items():
         if portal.enabled:
             cats = len(portal.categories or [])
             pages = sum(c.pages or 0 for c in (portal.categories or []))
-            print(f"    {name}: {cats} categories, ~{pages} pages total", file=sys.stderr)
+            print(
+                f"    {name}: {cats} categories, ~{pages} pages total", file=sys.stderr
+            )
     print(f"  Queries: {len(config.queries)}", file=sys.stderr)
     for qname, q in config.queries.items():
-        print(f"    {qname}: boolean={q.boolean[:60]}... portals={q.portals}", file=sys.stderr)
+        print(
+            f"    {qname}: boolean={q.boolean[:60]}... portals={q.portals}",
+            file=sys.stderr,
+        )
 
     # ── Run pipeline ──
     print(file=sys.stderr)
     print(f"Running pipeline...", file=sys.stderr)
     pipeline_start = time.time()
     pipeline = TimedPipeline(config)
-    results = pipeline.run()
+    results, _scraper_stats, pool_sizes = pipeline.run()
     pipeline_elapsed = time.time() - pipeline_start
+
+    # Save correlation cache
+    per_qp: dict[tuple[str, str], int] = Counter()
+    for qname, ads in results.items():
+        for ad in ads:
+            per_qp[(qname, ad.portal)] += 1
+    records = [
+        CorrelationRecord(
+            query=q, portal=p, total_found=c, total_scraped=pool_sizes.get(p, 0)
+        )
+        for (q, p), c in per_qp.items()
+    ]
+    try:
+        Storage.save_correlation(records, Path("data") / "correlation_cache.json")
+    except Exception as e:
+        print(f"Warning: correlation cache failed: {e}", file=sys.stderr)
 
     # ── Aggregate metrics ──
     total_ads = sum(len(ads) for ads in results.values())
 
     # Per-provider summary
-    provider_agg: dict[str, dict] = defaultdict(lambda: {"calls": 0, "elapsed": 0.0, "matched": 0, "errors": 0})
+    provider_agg: dict[str, dict] = defaultdict(
+        lambda: {"calls": 0, "elapsed": 0.0, "matched": 0, "errors": 0}
+    )
     for key, stat in pipeline.provider_stats.items():
         name = stat["portal"]
         provider_agg[name]["calls"] += 1
@@ -125,7 +161,10 @@ def main() -> None:
     print(f"Per-provider timing:", file=sys.stderr)
     for name, agg in sorted(provider_agg.items()):
         avg = agg["elapsed"] / max(agg["calls"], 1)
-        print(f"  {name}: {agg['matched']} matched in {agg['elapsed']:.1f}s total ({agg['calls']} calls, avg {avg:.2f}s/call, {agg['errors']} errors)", file=sys.stderr)
+        print(
+            f"  {name}: {agg['matched']} matched in {agg['elapsed']:.1f}s total ({agg['calls']} calls, avg {avg:.2f}s/call, {agg['errors']} errors)",
+            file=sys.stderr,
+        )
 
     # ── Build detailed output ──
     sample_data = {}
@@ -133,14 +172,16 @@ def main() -> None:
         sample = []
         for a in ads[:5]:
             d = a.to_dict()
-            sample.append({
-                "title": d.get("title", ""),
-                "portal": d.get("portal", ""),
-                "company": d.get("company", ""),
-                "location": d.get("location", ""),
-                "salary": d.get("salary", ""),
-                "url": d.get("url", ""),
-            })
+            sample.append(
+                {
+                    "title": d.get("title", ""),
+                    "portal": d.get("portal", ""),
+                    "company": d.get("company", ""),
+                    "location": d.get("location", ""),
+                    "salary": d.get("salary", ""),
+                    "url": d.get("url", ""),
+                }
+            )
         sample_data[qname] = {
             "count": len(ads),
             "portals": sorted(set(a.portal for a in ads)),
@@ -152,7 +193,10 @@ def main() -> None:
         "elapsed_seconds": round(pipeline_elapsed, 1),
         "total_matched": total_ads,
         "config": {
-            "portals": {n: {"enabled": p.enabled, "category_count": len(p.categories or [])} for n, p in config.portals.items()},
+            "portals": {
+                n: {"enabled": p.enabled, "category_count": len(p.categories or [])}
+                for n, p in config.portals.items()
+            },
             "queries": list(config.queries.keys()),
         },
         "provider_metrics": {k: dict(v) for k, v in provider_agg.items()},
@@ -178,13 +222,19 @@ def main() -> None:
 
     # ── Comparison with legacy ──
     print(file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
+    print(f"{'=' * 60}", file=sys.stderr)
     print(f"COMPARISON: MCP-Jobs vs Legacy", file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
+    print(f"{'=' * 60}", file=sys.stderr)
     print(f"{'Metric':<35} {'MCP-Jobs':<15} {'Legacy':<15}", file=sys.stderr)
-    print(f"{'-'*65}", file=sys.stderr)
-    print(f"{'Pipeline time (s)':<35} {pipeline_elapsed:<15.1f} {'~210':<15}", file=sys.stderr)
-    print(f"{'Speed factor':<35} {210/pipeline_elapsed:<15.1f}x {'1x':<15}", file=sys.stderr)
+    print(f"{'-' * 65}", file=sys.stderr)
+    print(
+        f"{'Pipeline time (s)':<35} {pipeline_elapsed:<15.1f} {'~210':<15}",
+        file=sys.stderr,
+    )
+    print(
+        f"{'Speed factor':<35} {210 / pipeline_elapsed:<15.1f}x {'1x':<15}",
+        file=sys.stderr,
+    )
 
     # Legacy comparison per portal
     legacy_portal_data = {
@@ -199,28 +249,48 @@ def main() -> None:
         mcp_time = provider_agg.get(portal, {}).get("elapsed", 0)
         leg = legacy_portal_data.get(portal, {})
         speedup = leg.get("time_est", 60) / max(mcp_time, 0.1)
-        print(f"{f'{portal} matched':<35} {mcp_matched:<15} {leg.get('ads',0):<15}", file=sys.stderr)
-        print(f"{f'{portal} time (s)':<35} {mcp_time:<15.1f} {leg.get('time_est',0):<15}", file=sys.stderr)
-        print(f"{f'{portal} speedup':<35} {speedup:<15.1f}x {'1x':<15}", file=sys.stderr)
+        print(
+            f"{f'{portal} matched':<35} {mcp_matched:<15} {leg.get('ads', 0):<15}",
+            file=sys.stderr,
+        )
+        print(
+            f"{f'{portal} time (s)':<35} {mcp_time:<15.1f} {leg.get('time_est', 0):<15}",
+            file=sys.stderr,
+        )
+        print(
+            f"{f'{portal} speedup':<35} {speedup:<15.1f}x {'1x':<15}", file=sys.stderr
+        )
 
     # Overall stats
     mcp_ads_per_s = total_ads / max(pipeline_elapsed, 0.1)
     legacy_ads_per_s = 112 / 210
     efficiency_gain = mcp_ads_per_s / max(legacy_ads_per_s, 0.001)
-    print(f"{'Ads per second':<35} {mcp_ads_per_s:<15.2f} {legacy_ads_per_s:<15.2f}", file=sys.stderr)
-    print(f"{'Efficiency gain':<35} {efficiency_gain:<15.1f}x {'1x':<15}", file=sys.stderr)
+    print(
+        f"{'Ads per second':<35} {mcp_ads_per_s:<15.2f} {legacy_ads_per_s:<15.2f}",
+        file=sys.stderr,
+    )
+    print(
+        f"{'Efficiency gain':<35} {efficiency_gain:<15.1f}x {'1x':<15}", file=sys.stderr
+    )
     print(file=sys.stderr)
 
     # Quality metrics
     print(f"{'Quality metrics':<35}", file=sys.stderr)
     print(f"{'  Salary/location filter':<35} {'YES':<15} {'NO':<15}", file=sys.stderr)
-    print(f"{'  Boolean parser':<35} {'YES (full)':<15} {'basic AND':<15}", file=sys.stderr)
+    print(
+        f"{'  Boolean parser':<35} {'YES (full)':<15} {'basic AND':<15}",
+        file=sys.stderr,
+    )
     print(f"{'  Dedup method':<35} {'URL+title':<15} {'URL only':<15}", file=sys.stderr)
-    print(f"{'  JS rendering':<35} {'Playwright':<15} {'requests':<15}", file=sys.stderr)
-    print(f"{'  Error handling':<35} {'structured':<15} {'silent':<15}", file=sys.stderr)
+    print(
+        f"{'  JS rendering':<35} {'Playwright':<15} {'requests':<15}", file=sys.stderr
+    )
+    print(
+        f"{'  Error handling':<35} {'structured':<15} {'silent':<15}", file=sys.stderr
+    )
     print(f"{'  Unit tests':<35} {'79':<15} {'0':<15}", file=sys.stderr)
     print(file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
+    print(f"{'=' * 60}", file=sys.stderr)
 
 
 if __name__ == "__main__":

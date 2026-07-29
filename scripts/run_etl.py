@@ -1,4 +1,5 @@
 """Run full ETL pipeline and save timestamped results."""
+
 from __future__ import annotations
 
 import argparse
@@ -6,6 +7,7 @@ import json
 import logging
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 logging.basicConfig(
@@ -16,8 +18,10 @@ logging.basicConfig(
 
 from mcp_jobs.config import UserConfig
 from mcp_jobs.pipeline import SearchPipeline
+from mcp_jobs.storage import CorrelationRecord, Storage
 
 OUTPUT_DIR = Path("output")
+DATA_DIR = Path("data")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
@@ -28,7 +32,9 @@ def _write_markdown_report(output: dict, ts: str) -> Path:
 
     _a("# MCP-Jobs Pipeline Report")
     _a("")
-    _a(f"**Spuštěno:** {output['timestamp']} | **Trvání:** {output['elapsed_seconds']}s | **Matched:** {output['total_matched']}")
+    _a(
+        f"**Spuštěno:** {output['timestamp']} | **Trvání:** {output['elapsed_seconds']}s | **Matched:** {output['total_matched']}"
+    )
     portals = ", ".join(output["config"]["portals"])
     queries = ", ".join(output["config"]["queries"])
     _a(f"**Portály:** {portals} | **Query:** {queries}")
@@ -99,18 +105,39 @@ def _write_markdown_report(output: dict, ts: str) -> Path:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="config.yaml", help="Path to YAML config file")
+    parser.add_argument(
+        "--config", default="config.yaml", help="Path to YAML config file"
+    )
     args = parser.parse_args()
     config = UserConfig.from_yaml(args.config)
 
     ts = time.strftime("%Y%m%d_%H%M%S")
     print(f"=== MCP-Jobs ETL | {ts} ===", file=sys.stderr)
-    print(f"Portals: {len(config.portals)}, Queries: {len(config.queries)}", file=sys.stderr)
+    print(
+        f"Portals: {len(config.portals)}, Queries: {len(config.queries)}",
+        file=sys.stderr,
+    )
 
     start = time.time()
     pipeline = SearchPipeline(config)
-    results = pipeline.run()
+    results, _scraper_stats, pool_sizes = pipeline.run()
     elapsed = time.time() - start
+
+    # Save correlation cache
+    per_qp: dict[tuple[str, str], int] = Counter()
+    for qname, ads in results.items():
+        for ad in ads:
+            per_qp[(qname, ad.portal)] += 1
+    records = [
+        CorrelationRecord(
+            query=q, portal=p, total_found=c, total_scraped=pool_sizes.get(p, 0)
+        )
+        for (q, p), c in per_qp.items()
+    ]
+    try:
+        Storage.save_correlation(records, DATA_DIR / "correlation_cache.json")
+    except Exception as e:
+        print(f"Warning: correlation cache failed: {e}", file=sys.stderr)
 
     total_ads = sum(len(ads) for ads in results.values())
     print(file=sys.stderr)
@@ -126,14 +153,16 @@ def main() -> None:
         sample = []
         for a in ads[:5]:
             d = a.to_dict()
-            sample.append({
-                "title": d.get("title", ""),
-                "portal": d.get("portal", ""),
-                "company": d.get("company", ""),
-                "location": d.get("location", ""),
-                "salary": d.get("salary", ""),
-                "url": d.get("url", ""),
-            })
+            sample.append(
+                {
+                    "title": d.get("title", ""),
+                    "portal": d.get("portal", ""),
+                    "company": d.get("company", ""),
+                    "location": d.get("location", ""),
+                    "salary": d.get("salary", ""),
+                    "url": d.get("url", ""),
+                }
+            )
         summary[qname] = {
             "count": len(ads),
             "portals": sorted(set(a.portal for a in ads)),
