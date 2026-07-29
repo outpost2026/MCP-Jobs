@@ -19,6 +19,7 @@ def _location_filter(ad: Ad, locations: list[str]) -> bool:
     ad_loc = ad.location.lower().strip()
     return any(loc.lower().strip() in ad_loc for loc in locations)
 
+
 _SALARY_NUM_RE = re.compile(r"\d{1,3}(?:[ \u00a0]\d{3})+|\d+")
 
 
@@ -50,8 +51,8 @@ class SearchPipeline:
     def __init__(self, config: UserConfig):
         self.config = config
 
-    def run(self) -> dict[str, list[Ad]]:
-        pool = self._scrape_all()
+    def run(self) -> tuple[dict[str, list[Ad]], dict[str, dict], dict[str, int]]:
+        pool, all_stats, pool_sizes = self._scrape_all()
         results: dict[str, list[Ad]] = {}
 
         for name, qconf in self.config.queries.items():
@@ -65,7 +66,9 @@ class SearchPipeline:
                     continue
                 if not matches_ad(ad, qconf.boolean):
                     continue
-                if has_exclude_terms(ad.title, qconf.exclude, description=ad.description or ""):
+                if has_exclude_terms(
+                    ad.title, qconf.exclude, description=ad.description or ""
+                ):
                     continue
                 if not _location_filter(ad, qconf.locations):
                     continue
@@ -75,10 +78,11 @@ class SearchPipeline:
 
             results[name] = filtered
 
-        return results
+        return results, all_stats, pool_sizes
 
-    def _scrape_all(self) -> list[Ad]:
+    def _scrape_all(self) -> tuple[list[Ad], dict[str, dict], dict[str, int]]:
         pool: list[Ad] = []
+        all_stats: dict[str, dict] = {}
 
         for portal_name, pconf in self.config.portals.items():
             if not pconf.enabled:
@@ -96,8 +100,17 @@ class SearchPipeline:
                     pool.extend(ads)
                 except Exception as e:
                     logger.error(f"  {portal_name}: {cat.url} -> error: {e}")
+                    provider.stats.errors.append(str(e))
 
-        return _dedup(pool)
+            sd = provider.stats.to_dict()
+            if sd["requests_ok"] or sd["requests_failed"]:
+                all_stats[portal_name] = sd
+
+        deduped = _dedup(pool)
+        pool_sizes: dict[str, int] = {}
+        for ad in deduped:
+            pool_sizes[ad.portal] = pool_sizes.get(ad.portal, 0) + 1
+        return deduped, all_stats, pool_sizes
 
     @staticmethod
     def from_config(path: str | Path) -> SearchPipeline:

@@ -32,7 +32,9 @@ class BazosScraper(BaseScraper):
         m = BazosScraper._SUBDOMAIN_RE.match(url)
         return m.group(1) if m else "https://www.bazos.cz"
 
-    def scrape_all(self, url: str, max_pages: int = 10, params: dict[str, str] | None = None) -> list[Ad]:
+    def scrape_all(
+        self, url: str, max_pages: int = 10, params: dict[str, str] | None = None
+    ) -> list[Ad]:
         all_ads: list[Ad] = []
         seen_urls: set[str] = set()
         query_suffix = ""
@@ -49,7 +51,7 @@ class BazosScraper(BaseScraper):
             if query_suffix:
                 page_url += query_suffix
 
-            text = self.http.get_text(page_url)
+            text = self._fetch_page(page_url)
             if not text:
                 break
 
@@ -70,7 +72,9 @@ class BazosScraper(BaseScraper):
 
         return all_ads
 
-    def parse_listings(self, html_text: str, query: str = "", base_domain: str | None = None) -> list[Ad]:
+    def parse_listings(
+        self, html_text: str, query: str = "", base_domain: str | None = None
+    ) -> list[Ad]:
         soup = BeautifulSoup(html_text, "html.parser")
         ads: list[Ad] = []
         domain = base_domain or self.BASE_URL
@@ -85,7 +89,11 @@ class BazosScraper(BaseScraper):
 
                 title = title_el.get_text(strip=True)
                 raw_href = title_el.get("href", "")
-                url = raw_href if raw_href.startswith("http") else f"{domain}/{raw_href.lstrip('/')}"
+                url = (
+                    raw_href
+                    if raw_href.startswith("http")
+                    else f"{domain}/{raw_href.lstrip('/')}"
+                )
 
                 desc_el = card.select_one(".popis")
                 description = desc_el.get_text(strip=True) if desc_el else ""
@@ -124,7 +132,9 @@ class BazosScraper(BaseScraper):
         if cards and not ads:
             logger.error(
                 "%s: found %d cards but parsed 0 ads — selector likely broken",
-                self.name, len(cards))
+                self.name,
+                len(cards),
+            )
         elif skipped:
             logger.info("%s: skipped %d/%d cards", self.name, skipped, len(cards))
 

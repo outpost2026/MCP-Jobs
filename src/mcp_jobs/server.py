@@ -24,7 +24,53 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("MCP-Jobs")
 
 # ── L2 Resource store ─────────────────────────────────────────────
+_ROOT = Path(__file__).resolve().parent.parent.parent
+_QUERY_STORE_PATH = _ROOT / "data" / "query_store.json"
+_CORRELATION_PATH = _ROOT / "data" / "correlation_cache.json"
+_OUTPUT_DIR = _ROOT / "output"
+_MAX_STORED = 50
+
 _query_store: dict[str, dict] = {}
+
+
+def _load_query_store() -> None:
+    if _QUERY_STORE_PATH.exists():
+        try:
+            with _QUERY_STORE_PATH.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            _query_store.update(data)
+            logger.info("Loaded %d entries from %s", len(data), _QUERY_STORE_PATH)
+        except Exception as e:
+            logger.warning("Failed to load query store: %s", e)
+
+
+def _save_query_store() -> None:
+    _QUERY_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _QUERY_STORE_PATH.open("w", encoding="utf-8") as f:
+        json.dump(_query_store, f, ensure_ascii=False, indent=2)
+
+
+def _save_correlation(results: dict[str, list[Ad]], pool_sizes: dict[str, int]) -> None:
+    from collections import Counter
+
+    per_query_portal: dict[tuple[str, str], int] = Counter()
+    for query_name, ads in results.items():
+        for ad in ads:
+            per_query_portal[(query_name, ad.portal)] += 1
+
+    records = [
+        CorrelationRecord(
+            query=query,
+            portal=portal,
+            total_found=count,
+            total_scraped=pool_sizes.get(portal, 0),
+        )
+        for (query, portal), count in per_query_portal.items()
+    ]
+    try:
+        Storage.save_correlation(records, _CORRELATION_PATH)
+    except Exception as e:
+        logger.warning("Failed to save correlation cache: %s", e)
 
 
 def _store_results(results_data: list[dict]) -> str:
@@ -34,7 +80,18 @@ def _store_results(results_data: list[dict]) -> str:
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "type": "search_results",
     }
+    # Keep max N entries, drop oldest
+    if len(_query_store) > _MAX_STORED:
+        ids = sorted(_query_store, key=lambda qid: _query_store[qid]["timestamp"])
+        for qid in ids[: len(_query_store) - _MAX_STORED]:
+            del _query_store[qid]
+    _save_query_store()
     return query_id
+
+
+# Load persisted store on module init
+_load_query_store()
+
 
 PORTAL_ALIASES: dict[str, str] = {
     "vše": "vše",
@@ -60,24 +117,33 @@ def health_check() -> dict:
 def _run_pipeline(config: UserConfig) -> list[dict]:
     try:
         pipeline = SearchPipeline(config)
-        results = pipeline.run()
+        results, scraper_stats, pool_sizes = pipeline.run()
     except Exception as e:
         logger.exception("Pipeline error")
         return [{"error": f"Pipeline error: {e}"}]
 
     output = []
     for query_name, ads in results.items():
-        output.append({
+        entry = {
             "query": query_name,
             "total_found": len(ads),
             "results": [a.to_dict() for a in ads],
-        })
+        }
+        if scraper_stats:
+            entry["_stats"] = scraper_stats
+        output.append(entry)
     if not output:
         return [{"message": "No results found."}]
+
+    _save_correlation(results, pool_sizes)
 
     query_id = _store_results(output)
     output[0]["query_id"] = query_id
     output[0]["resource_uri"] = f"mcp-jobs://ads/{query_id}"
+    try:
+        Storage.save_timestamped(output, _OUTPUT_DIR)
+    except Exception as e:
+        logger.warning("Failed to persist output: %s", e)
     return output
 
 
@@ -145,6 +211,7 @@ def search_jobs_v2(
 
     results: list[dict] = []
     errors: list[str] = []
+    all_stats: dict[str, dict] = {}
 
     for name in portals_to_search:
         provider_cls = ACTIVE_PORTALS[name]
@@ -152,6 +219,10 @@ def search_jobs_v2(
         try:
             category_url = _default_category(name)
             ads = provider.scrape_all(category_url, pages)
+
+            sd = provider.stats.to_dict()
+            if sd["requests_ok"] or sd["requests_failed"]:
+                all_stats[name] = sd
 
             for ad in ads:
                 if matches_ad(ad, query):
@@ -164,19 +235,30 @@ def search_jobs_v2(
             return [{"error": f"Portal errors: {' | '.join(errors)}"}]
         return [{"message": f"No results found for '{query}'."}]
 
-    output = [{"query": query, "portal": portal, "total_found": len(results), "results": results}]
+    output = [
+        {
+            "query": query,
+            "portal": portal,
+            "total_found": len(results),
+            "results": results,
+        }
+    ]
+    if all_stats:
+        output[0]["_stats"] = all_stats
     if errors and results:
         output[0]["errors"] = errors
 
     query_id = _store_results(output)
     output[0]["query_id"] = query_id
     output[0]["resource_uri"] = f"mcp-jobs://ads/{query_id}"
+    try:
+        Storage.save_timestamped(output, _OUTPUT_DIR)
+    except Exception as e:
+        logger.warning("Failed to persist output: %s", e)
     return output
 
 
-@mcp.tool(
-    description="List available portals and their default category URLs."
-)
+@mcp.tool(description="List available portals and their default category URLs.")
 def list_portals() -> list[dict]:
     return [
         {
@@ -251,18 +333,20 @@ def get_ads_report_resource(query_id: str) -> str:
     all_ads: list[Ad] = []
     for entry in data:
         for ad_dict in entry.get("results", []):
-            all_ads.append(Ad(
-                title=ad_dict.get("title", ""),
-                url=ad_dict.get("url", ""),
-                portal=ad_dict.get("portal", ""),
-                company=ad_dict.get("company"),
-                location=ad_dict.get("location"),
-                salary=ad_dict.get("salary"),
-                price=ad_dict.get("price"),
-                description=ad_dict.get("description"),
-                matched_keyword=ad_dict.get("matched_keyword", ""),
-                scraped_at=ad_dict.get("scraped_at", ""),
-            ))
+            all_ads.append(
+                Ad(
+                    title=ad_dict.get("title", ""),
+                    url=ad_dict.get("url", ""),
+                    portal=ad_dict.get("portal", ""),
+                    company=ad_dict.get("company"),
+                    location=ad_dict.get("location"),
+                    salary=ad_dict.get("salary"),
+                    price=ad_dict.get("price"),
+                    description=ad_dict.get("description"),
+                    matched_keyword=ad_dict.get("matched_keyword", ""),
+                    scraped_at=ad_dict.get("scraped_at", ""),
+                )
+            )
 
     report = Storage.markdown_report(all_ads)
     header = f"> Generated: {timestamp} | Queries: {len(data)} | Total ads: {len(all_ads)}\n\n"
@@ -272,7 +356,7 @@ def get_ads_report_resource(query_id: str) -> str:
 @mcp.prompt(
     name="search_expert",
     title="Search Expert — Boolean Query Builder",
-    description="Convert natural language job search criteria into a boolean query for MCP-Jobs"
+    description="Convert natural language job search criteria into a boolean query for MCP-Jobs",
 )
 def search_expert(
     query_description: str,
@@ -292,10 +376,16 @@ def search_expert(
         exclude_list = [t.strip() for t in exclude_terms.split(",") if t.strip()]
         if exclude_list:
             not_part = " AND ".join(f"NOT {e}" for e in exclude_list)
-            boolean_query = f"{boolean_query} AND {not_part}" if boolean_query else not_part
+            boolean_query = (
+                f"{boolean_query} AND {not_part}" if boolean_query else not_part
+            )
 
     loc_val = repr(location) if location else ""
-    excl_list = [e.strip() for e in exclude_terms.split(",") if e.strip()] if exclude_terms else []
+    excl_list = (
+        [e.strip() for e in exclude_terms.split(",") if e.strip()]
+        if exclude_terms
+        else []
+    )
     excl_val = ", ".join(repr(e) for e in excl_list)
 
     lines = [
@@ -307,7 +397,7 @@ def search_expert(
         "### Usage",
         "",
         "**Option 1 — Quick search (ad-hoc):**",
-        "Use `search_jobs_v2` with `query=\"{}\"`".format(boolean_query),
+        'Use `search_jobs_v2` with `query="{}"`'.format(boolean_query),
         "",
         "**Option 2 — Config file (full pipeline):**",
         "```yaml",

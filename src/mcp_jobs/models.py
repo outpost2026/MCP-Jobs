@@ -20,16 +20,46 @@ class Ad:
     description: Optional[str] = None
     category_name: Optional[str] = None
     matched_keyword: str = ""
-    scraped_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    scraped_at: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+
+    OPTIONAL_FIELDS = {
+        "date",
+        "company",
+        "location",
+        "salary",
+        "price",
+        "description",
+        "category_name",
+    }
 
     def to_dict(self) -> dict:
         d = {}
-        for k in ("title", "url", "portal", "date", "company", "location",
-                   "salary", "price", "description", "category_name",
-                   "matched_keyword", "scraped_at"):
+        missing = []
+        for k in (
+            "title",
+            "url",
+            "portal",
+            "date",
+            "company",
+            "location",
+            "salary",
+            "price",
+            "description",
+            "category_name",
+            "matched_keyword",
+            "scraped_at",
+        ):
             v = getattr(self, k, None)
             if v is not None:
                 d[k] = strip_emoji(v) if isinstance(v, str) else v
+            elif k in self.OPTIONAL_FIELDS:
+                d[k] = None
+                missing.append(k)
+        if missing:
+            d["missing_fields"] = missing
+            d["_flags"] = {"partial": True}
         return d
 
 

@@ -22,7 +22,9 @@ class PraceczScraper(BaseScraper):
     def build_search_url(self, query: str) -> str:
         return f"{self.BASE_URL}/nabidky/?q={quote_plus(query)}"
 
-    def scrape_all(self, url: str, max_pages: int = 15, params: dict[str, str] | None = None) -> list[Ad]:
+    def scrape_all(
+        self, url: str, max_pages: int = 15, params: dict[str, str] | None = None
+    ) -> list[Ad]:
         all_ads: list[Ad] = []
         seen_urls: set[str] = set()
         connector = "&" if "?" in url else "?"
@@ -30,7 +32,7 @@ class PraceczScraper(BaseScraper):
         for page in range(1, max_pages + 1):
             page_url = f"{url}{connector}page={page}"
 
-            text = self.http.get_text(page_url)
+            text = self._fetch_page(page_url)
             if not text:
                 break
 
@@ -107,7 +109,9 @@ class PraceczScraper(BaseScraper):
         if cards and not ads:
             logger.error(
                 "%s: found %d cards but parsed 0 ads — selector likely broken",
-                self.name, len(cards))
+                self.name,
+                len(cards),
+            )
         elif skipped:
             logger.info("%s: skipped %d/%d cards", self.name, skipped, len(cards))
 

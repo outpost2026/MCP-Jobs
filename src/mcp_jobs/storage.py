@@ -1,22 +1,74 @@
 from __future__ import annotations
 
 import csv
+import json
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
 from .models import Ad
 
 
+@dataclass
+class CorrelationRecord:
+    query: str
+    portal: str
+    total_found: int
+    total_scraped: int
+    errors: int = 0
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+
+    @property
+    def hit_rate(self) -> float:
+        if self.total_scraped == 0:
+            return 0.0
+        return round(self.total_found / self.total_scraped, 4)
+
+
 class Storage:
     PORTAL_FIELDS: dict[str, list[str]] = {
-        "bazos":   ["title", "url", "date", "matched_keyword", "location",
-                     "price", "category_name", "description", "scraped_at"],
-        "jobs":    ["title", "url", "date", "salary", "company",
-                     "location", "matched_keyword", "category_name", "scraped_at"],
-        "pracecz": ["title", "url", "salary", "company",
-                     "location", "matched_keyword", "category_name", "scraped_at"],
-        "nyx":     ["title", "url", "date", "price", "description",
-                     "matched_keyword", "scraped_at"],
+        "bazos": [
+            "title",
+            "url",
+            "date",
+            "matched_keyword",
+            "location",
+            "price",
+            "category_name",
+            "description",
+            "scraped_at",
+        ],
+        "jobs": [
+            "title",
+            "url",
+            "date",
+            "salary",
+            "company",
+            "location",
+            "matched_keyword",
+            "category_name",
+            "scraped_at",
+        ],
+        "pracecz": [
+            "title",
+            "url",
+            "salary",
+            "company",
+            "location",
+            "matched_keyword",
+            "category_name",
+            "scraped_at",
+        ],
+        "nyx": [
+            "title",
+            "url",
+            "date",
+            "price",
+            "description",
+            "matched_keyword",
+            "scraped_at",
+        ],
     }
 
     @staticmethod
@@ -53,6 +105,75 @@ class Storage:
         return new_count
 
     @staticmethod
+    def save_timestamped(data: list[dict], output_dir: Path) -> list[Path]:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        json_path = output_dir / f"etl_{timestamp}.json"
+        with json_path.open("w", encoding="utf-8", newline="") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        latest_json = output_dir / "etl_latest.json"
+        with latest_json.open("w", encoding="utf-8", newline="") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+        all_ads: list[Ad] = []
+        for entry in data:
+            for ad_dict in entry.get("results", []):
+                all_ads.append(
+                    Ad(
+                        title=ad_dict.get("title", ""),
+                        url=ad_dict.get("url", ""),
+                        portal=ad_dict.get("portal", ""),
+                        company=ad_dict.get("company"),
+                        location=ad_dict.get("location"),
+                        salary=ad_dict.get("salary"),
+                        price=ad_dict.get("price"),
+                        description=ad_dict.get("description"),
+                        matched_keyword=ad_dict.get("matched_keyword", ""),
+                    )
+                )
+
+        md_body = Storage.markdown_report(all_ads)
+        header = f"> Generated: {timestamp} | Queries: {len(data)} | Total ads: {len(all_ads)}\n\n"
+        md_text = header + md_body
+
+        md_path = output_dir / f"etl_{timestamp}.md"
+        with md_path.open("w", encoding="utf-8", newline="") as f:
+            f.write(md_text)
+        latest_md = output_dir / "etl_latest.md"
+        with latest_md.open("w", encoding="utf-8", newline="") as f:
+            f.write(md_text)
+
+        return [json_path, md_path]
+
+    @staticmethod
+    def save_correlation(records: list[CorrelationRecord], path: Path) -> None:
+        existing: list[dict] = []
+        if path.exists():
+            try:
+                with path.open("r", encoding="utf-8") as f:
+                    existing = json.load(f)
+            except Exception:
+                pass
+
+        for r in records:
+            existing.append(
+                {
+                    "query": r.query,
+                    "portal": r.portal,
+                    "total_found": r.total_found,
+                    "total_scraped": r.total_scraped,
+                    "hit_rate": r.hit_rate,
+                    "errors": r.errors,
+                    "timestamp": r.timestamp,
+                }
+            )
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(existing, f, ensure_ascii=False, indent=2)
+
+    @staticmethod
     def markdown_report(ads: list[Ad]) -> str:
         lines = [f"# Search Results ({len(ads)} ads)", ""]
         for ad in ads:
@@ -75,7 +196,11 @@ class Storage:
 
     @staticmethod
     def rag_index_md(ads: list[Ad], title: str = "RAG INDEX") -> str:
-        lines = [f"# {title} - {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')}", "---", ""]
+        lines = [
+            f"# {title} - {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            "---",
+            "",
+        ]
         for i, ad in enumerate(ads, 1):
             meta_parts = []
             if ad.date:
