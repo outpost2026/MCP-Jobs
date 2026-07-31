@@ -37,6 +37,7 @@ class QueryConfig:
 @dataclass
 class UserConfig:
     user: str = "default"
+    profile: str = "default"
     portals: dict[str, PortalConfig] = field(default_factory=dict)
     queries: dict[str, QueryConfig] = field(default_factory=dict)
 
@@ -72,7 +73,7 @@ class UserConfig:
                 "    portal_name:\n"
                 "      enabled: true\n"
                 "      categories:\n"
-                "        - url: \"https://...\"\n"
+                '        - url: "https://..."\n'
                 "          pages: 5"
             )
         portals = {}
@@ -93,9 +94,9 @@ class UserConfig:
                 "Expected format:\n"
                 "  queries:\n"
                 "    query_name:\n"
-                "      boolean: \"(python AND developer) NOT senior\"\n"
-                "      exclude: [\"agentura\"]\n"
-                "      portals: [\"jobs\", \"pracecz\"]"
+                '      boolean: "(python AND developer) NOT senior"\n'
+                '      exclude: ["agentura"]\n'
+                '      portals: ["jobs", "pracecz"]'
             )
         queries = {}
         for name, qdata in raw_queries.items():
@@ -104,11 +105,14 @@ class UserConfig:
             except TypeError as e:
                 raise TypeError(f"Query {name!r}: invalid query config: {e}") from e
             if qc.boolean and not validate_boolean(qc.boolean):
-                logger.warning("Query %r has malformed boolean expression: %r", name, qc.boolean)
+                logger.warning(
+                    "Query %r has malformed boolean expression: %r", name, qc.boolean
+                )
             queries[name] = qc
 
         return cls(
             user=raw.get("user", "default"),
+            profile=raw.get("profile", "default"),
             portals=portals,
             queries=queries,
         )

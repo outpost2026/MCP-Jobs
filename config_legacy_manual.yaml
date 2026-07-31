@@ -9,6 +9,7 @@
 # Sdílí stejný engine, portály a korelační cache s config.yaml.
 
 user: "default"
+profile: "LEGACY-MANUAL"
 
 portals:
   jobs:

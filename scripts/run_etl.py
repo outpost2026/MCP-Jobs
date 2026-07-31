@@ -25,16 +25,36 @@ DATA_DIR = Path("data")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
-def _write_markdown_report(output: dict, ts: str) -> Path:
+def _profile_tag(config: UserConfig) -> str:
+    """Semantic tag for output files derived from config profile.
+
+    'AI-NATIVE' -> 'AINATIVE', 'LEGACY-MANUAL' -> 'LEGACY_MANUAL', else 'default'.
+    """
+    tag = _profile_tag_from_profile(config.profile)
+    return tag or "default"
+
+
+def _profile_tag_from_profile(profile: str) -> str:
+    tag = profile.upper()
+    for ch in ("-", " ", "/", "\\", ":", "."):
+        tag = tag.replace(ch, "_")
+    tag = "_".join(p for p in tag.split("_") if p)
+    return tag or "default"
+
+
+def _write_markdown_report(output: dict, ts: str, profile_tag: str = "") -> Path:
     """Generate high-SNR human-readable MD report with clickable links."""
     lines: list[str] = []
     _a = lines.append
+    profile = output.get("profile", "default")
+    profile_tag = profile_tag or _profile_tag_from_profile(profile)
 
     _a("# MCP-Jobs Pipeline Report")
     _a("")
     _a(
         f"**Spuštěno:** {output['timestamp']} | **Trvání:** {output['elapsed_seconds']}s | **Matched:** {output['total_matched']}"
     )
+    _a(f"**Profil (config):** `{profile}`")
     portals = ", ".join(output["config"]["portals"])
     queries = ", ".join(output["config"]["queries"])
     _a(f"**Portály:** {portals} | **Query:** {queries}")
@@ -96,8 +116,8 @@ def _write_markdown_report(output: dict, ts: str) -> Path:
     md_path = OUTPUT_DIR / f"etl_{ts}.md"
     md_path.write_text("\n".join(lines), encoding="utf-8")
 
-    # Update latest
-    latest_md = OUTPUT_DIR / "etl_latest.md"
+    # Update latest per-profile
+    latest_md = OUTPUT_DIR / f"etl_latest_{profile_tag}.md"
     latest_md.write_text("\n".join(lines), encoding="utf-8")
 
     return md_path
@@ -117,6 +137,8 @@ def main() -> None:
         f"Portals: {len(config.portals)}, Queries: {len(config.queries)}",
         file=sys.stderr,
     )
+    profile_tag = _profile_tag(config)
+    print(f"Profile: {config.profile} (tag={profile_tag})", file=sys.stderr)
 
     start = time.time()
     pipeline = SearchPipeline(config)
@@ -130,10 +152,18 @@ def main() -> None:
             per_qp[(qname, ad.portal)] += 1
     records = [
         CorrelationRecord(
-            query=q, portal=p, total_found=c, total_scraped=pool_sizes.get(p, 0)
+            query=q,
+            portal=p,
+            total_found=c,
+            total_scraped=pool_sizes.get(p, 0),
+            timestamp=f"{time.strftime('%Y-%m-%dT%H:%M:%S')}.000000",
+            errors=0,
         )
         for (q, p), c in per_qp.items()
     ]
+    # Tag correlation records with the config profile for cross-config SNR separation
+    for rec in records:
+        rec.profile = config.profile
     try:
         Storage.save_correlation(records, DATA_DIR / "correlation_cache.json")
     except Exception as e:
@@ -173,6 +203,8 @@ def main() -> None:
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "elapsed_seconds": round(elapsed, 1),
         "total_matched": total_ads,
+        "profile": config.profile,
+        "config_file": args.config,
         "config": {
             "portals": list(config.portals.keys()),
             "queries": list(config.queries.keys()),
@@ -181,20 +213,24 @@ def main() -> None:
         "results": {q: [a.to_dict() for a in ads] for q, ads in results.items()},
     }
 
-    filename = f"etl_{ts}.json"
+    filename = f"etl_{profile_tag}_{ts}.json"
     path = OUTPUT_DIR / filename
     with open(path, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
-    # Update latest symlink (copy on Windows)
-    latest = OUTPUT_DIR / "etl_latest.json"
+    # Update latest per-profile (copy on Windows)
+    latest = OUTPUT_DIR / f"etl_latest_{profile_tag}.json"
     with open(latest, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
     print(f"\nSaved: {path} ({len(output['results'])} queries)", file=sys.stderr)
 
     # Markdown human-readable report
-    md_path = _write_markdown_report(output, ts) if total_ads else None
+    md_path = (
+        _write_markdown_report(output, f"{profile_tag}_{ts}", profile_tag)
+        if total_ads
+        else None
+    )
     if md_path:
         print(f"Report: {md_path}", file=sys.stderr)
 

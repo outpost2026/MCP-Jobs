@@ -17,6 +17,7 @@ class CorrelationRecord:
     total_found: int
     total_scraped: int
     errors: int = 0
+    profile: str = "default"
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
     @property
@@ -161,6 +162,7 @@ class Storage:
                 {
                     "query": r.query,
                     "portal": r.portal,
+                    "profile": r.profile,
                     "total_found": r.total_found,
                     "total_scraped": r.total_scraped,
                     "hit_rate": r.hit_rate,

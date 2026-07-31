@@ -7,6 +7,7 @@
 # Pozn. matcher normalizuje diakritiku + word-boundary; "/" je non-word (ci AND cd chyti "ci/cd").
 
 user: "default"
+profile: "AI-NATIVE"
 
 portals:
   jobs:
