@@ -90,11 +90,18 @@ queries:
     portals: ["jobs", "pracecz"]
 
   devops_ci_cd:
-    boolean: "(devops OR (ci AND cd) OR docker OR kubernetes OR terraform OR ansible OR (infrastructure AND code) OR site_reliability OR sre OR (automation AND engineer))"
+    boolean: "(devops OR (ci AND cd) OR docker OR kubernetes OR terraform OR ansible OR (infrastructure AND code) OR site_reliability OR sre)"
     exclude: *_x_exclude
     min_salary: 0
     locations: []
     portals: ["jobs", "pracecz"]
+
+  prumyslova_automatizace:
+    boolean: "(plc OR scada OR dcs OR robotika OR robotizace OR cobot OR (automatizace AND (vyrobni OR vyroba OR linka OR prumysl OR prumyslova OR prumyslove OR industrie)) OR (siemens AND (plc OR tia OR automatizace)) OR (control AND (automation OR automatizace)) OR (automation AND (engineer OR inzenyr OR projektant OR industrial OR plc OR robot OR manufacturing))) NOT (rpa OR uipath OR (power AND automate) OR obchodni OR administrativa)"
+    exclude: *_x_exclude
+    min_salary: 0
+    locations: []
+    portals: ["jobs", "pracecz", "bazos"]
 
   cnc_cam_automation:
     boolean: "(cnc OR frezar OR frezarka OR frezovani OR (cam AND software)) AND (programovani OR automatizace OR software OR obrabeni OR nastaveni) NOT (obsluha OR operator)"
