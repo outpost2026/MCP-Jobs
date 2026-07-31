@@ -1,13 +1,13 @@
 {
   "repo": "MCP-Jobs",
   "created": "2026-07-13T22:00:00+00:00",
-  "phase": "07-cross-audit",
+  "phase": "08-cross-audit-fix",
   "status": "active",
   "branch": "main",
   "remote": "https://github.com/outpost2026/MCP-Jobs.git",
   "last_session": {
-    "value": "Iteration 7 (2026-07-31): cross-LLM audit proveden de novo na remote (LLM auditor prosled repo zive, chain-of-thought). 103 testu PASS, coverage 66% (pipeline 55%, storage 34%, server 57%, http 67%, cli 0%). Nalezy verifikovany proti kodu: C1 dedup fuzzy-key kolize (pipeline.py:43, ticha ztrata dat u firem s pobockami), C2 silent errors (http.py 3x return None bez loggeru, storage.py:157 except Exception: pass), M1 malformed boolean -> ticha 0 shod (config.py:124), M2 detail_cache cachuje failure, M3 bazos price vs salary no-op, M4 container selector tichy 0 ads, M5 synthetic_guardrails.py mimo pytest, M6 chybi [dev] extra, M7 README stale (97 vs 103). Vyvracena hypoteza: fastmcp dep mismatch (fastmcp strhava mcp tranzitivne, import OK). main=refactor ff-merge bb3905a. CROSS_AUDIT_HANDOFF + CROSS_AUDIT_MCP-jobs_v1 v KB (02_ANALYZY/05_mcp_jobs/). HEAD bb3905a.",
-    "updated": "2026-07-31T23:30:00+00:00"
+    "value": "Iteration 8 (2026-07-31): Cross-audit fix balik (Phase 08). 10 fixu aplikovano a verifikovano: C1 dedup fuzzy_key + (location or '') + warning, C2 logger do http/storage/base (silent errors eliminovany), M1 malformed boolean fail-fast (raise ValueError, configy validni), M2 detail_cache retry, M3 salary fallback na price, M4 container guard if not cards (3 providers), M5 synthetic_guardrails -> test_synthetic_guardrails.py, M6 pyproject dev extra, M7 dead import Matcher + search_expert OR, m3 datetime cleanup. Test suite 103 -> 123 PASS (+20). Fresh ETL run verifikovan: 26 matched/15 uniq identicke s baseline, 0 ERROR, 58 WARNING (33 fuzzy dedup reposty + 24 exact dup + 1x 404 bazos stop = vse ocekavane). Grok/xAI audit analyzovan: konvergentni, base.py doplnek platny, M4 'opraveno' claim VYVRACEN (guard nechranil rozbity selektor). KB artefakt: FIX_BALIK_cross_audit_2026-07-31.md. HEAD a99713c + working tree, push pending.",
+    "updated": "2026-07-31T23:50:00+00:00"
   },
   "profiles": {
     "ai_native": {
@@ -22,23 +22,23 @@
     }
   },
   "pending": [
-    "P0-C1: dedup fuzzy_key kolize — zahrnout lokalitu/URL NEBO logovat zahoz (pipeline.py:43)",
-    "P0-C2: silent errors — import loggeru do http.py/storage.py, nahradit return None/pass za logger.warning",
-    "P1-M1: malformed boolean fail-fast (raise pri load) NEBO skip + explicitni error vystup (config.py:124)",
-    "P1-M2: detail_cache retry failed fetch (pipeline.py:84-89)",
-    "P1-M3: bazos salary fallback na price (salary filtr no-op pro bazos)",
-    "P1-M4: container guard if not cards: logger.error napric providers",
-    "P1-M5: rename synthetic_guardrails.py do pytest konvence + odstranit Windows hardcode",
-    "P1-M6: pyproject [project.optional-dependencies] dev extra (README pip install -e .[dev] selhava)",
-    "P1-M7: README sync — 103 testu, aktualni tool sada",
-    "P2: chybejici testy (negativni dedup, malformed boolean, http exception, salary price fallback, container broken log) + dead import Matcher + search_expert location OR + _default_category praha hardcode",
+    "README sync — stale claimy (97 vs 123 testu), 'zadne silent failures' rozpor s C2 (fixy aplikovany, README neaktualizovan)",
+    "P2: SSRF URL validace (m6 Grok, nizka priorita — lokalni nastroj)",
+    "P2: bazos fetch_detail NotImplementedError — dokumentace/implementace (m7 Grok)",
+    "P2: _default_category jobs hardcoded praha (m1, search_jobs_v2 vzdy Praha)",
+    "P2: pyproject coverage — [project.optional-dependencies] dev doplnit coverage+pytest-cov, zacit merit (baseline 66%)",
+    "CI/CD (GitHub Actions: ruff, mypy, pytest, coverage report)",
+    "SQLite/FTS5 persistent storage",
+    "Streamable-http transport",
     "Security threat model (chybejici layer vsech auditu)",
     "Hosted demo (Railway/Render)",
     "LinkedIn Analyzer integrace",
-    "CI/CD (GitHub Actions)",
     "Sladit nemecko-blocklist / exclude listy mezi MCP-Jobs config a scrapers topics.csv (scrapers: vsech 93 radku blokovano)"
   ],
   "completed": [
+    "Phase 08: cross-audit fix balik — 10 fixu (C1, C2, M1-M7, m3) aplikovano + 123 testu PASS + fresh ETL determinism check (26 matched/15 uniq bez regrese)",
+    "FIX_BALIK_cross_audit_2026-07-31.md v B2B-Knowledge-Base/02_ANALYZY/05_mcp_jobs/",
+    "Grok/xAI audit analyzovan (2026-07-31): konvergentni s v1; M4 'castecne opraveno' claim vyvracen; base.py silent except doplnek",
     "main=refactor fast-forward merge bb3905a (2026-07-31)",
     "Cross-LLM audit (de novo, na remote): 103 testu PASS, coverage 66%, C1/C2 CRITICAL + M1-M7 MAJOR identifikovany a verifikovany",
     "CROSS_AUDIT_HANDOFF_MCP-jobs_2026-07-31.md + CROSS_AUDIT_MCP-jobs_v1_2026-07-31.md v B2B-Knowledge-Base/02_ANALYZY/05_mcp_jobs/",
@@ -57,12 +57,14 @@
   ],
   "key_findings": {
     "comparison_2026-07-31": "MCP-AI 15 uniq/99.9s, MCP-LEG 48 uniq/116.6s, scrapers-fresh 21 uniq. Pruniky: MCP-AI n scrapers-fresh = 1/15 (7%), MCP-LEG n scrapers-fresh = 7/48 (15%). Scrapers MAJI vetsi prosivani (168 uniq cumulative), ale jen 21 fresh. Doporuceni: ponechat obe architektury.",
-    "cross_audit_2026-07-31": "Jadro robustni (boolean AST, NFKD, 103 testu PASS, rate limiting) — nadprumer vs konkurence. Slabiny v tiche odolnosti: silent errors (http/storage), ticha ztrata dat (dedup), ticha 0 shod (malformed boolean). Public delivery readiness: NE (chybi CI/CD, coverage, dev extra, guardrails test rename, README stale). Vyvracena hypoteza: fastmcp dep mismatch."
+    "cross_audit_2026-07-31": "Jadro robustni (boolean AST, NFKD, 103 testu PASS, rate limiting) — nadprumer vs konkurence. Slabiny v tiche odolnosti: silent errors (http/storage), ticha ztrata dat (dedup), ticha 0 shod (malformed boolean). Public delivery readiness: NE (chybi CI/CD, coverage, dev extra, guardrails test rename, README stale). Vyvracena hypoteza: fastmcp dep mismatch.",
+    "grok_audit_2026-07-31": "Konvergentni s v1 (C1, C2, M1, M2, M3, M4-pyproject, README, guardrails, M7 dead-import + location). Navic: base.py:97 silent except (platny), SSRF (m6, nizka priorita), bazos fetch_detail NIT (m7). CHYBNE: container guard prohlasen za 'castecne opraveno' — guard existuje, ale nechrani rozbity selektor (cards=[] -> ticho). Fix aplikovan ve Phase 08.",
+    "fresh_test_2026-07-31": "Determinism check po fix baliku: 26 matched / 15 uniq identicke s baseline, per-query 0 diff, 0 ERROR, 58 WARNING (33 fuzzy dedup reposty + 24 exact dup + 1x 404 bazos stop = vse ocekavane). 123 testu PASS."
   },
   "dependencies": {
     "linkedin-mcp-custom": "EROI scoring pattern + cross-MCP integrace",
     "B2B-Knowledge-Base": "pitevni knihy, KB write target, analyzy, cross-audit artefakty",
     "scrapers": "paralelni legacy pipeline (4 scrapery + Master_Prace_Index); topics.csv = zdroj nemecko-blocklistu"
   },
-  "next_phase": "Phase 08 — Cross-audit fix balik (P0/P1) + Security hardening"
+  "next_phase": "Phase 09 — Public delivery: CI/CD (ruff/mypy/coverage), README sync, coverage report, security threat model"
 }

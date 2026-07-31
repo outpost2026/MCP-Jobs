@@ -86,6 +86,17 @@ def test_bazos_empty_html():
     assert ads == []
 
 
+def test_bazos_broken_selector_logs(caplog):
+    """M4 fix: no cards found -> error log (layout change detection)."""
+    import logging
+
+    scraper = BazosScraper()
+    ads = scraper.parse_listings('<div class="totally-different">x</div>', "python")
+    assert ads == []
+    assert any("0 cards" in r.message for r in caplog.records)
+    assert caplog.records[-1].levelno == logging.ERROR
+
+
 def test_bazos_no_results():
     scraper = BazosScraper()
     ads = scraper.parse_listings('<div class="inzeraty"></div>', "python")
@@ -100,15 +111,23 @@ def test_bazos_scrape_all_stops_on_empty():
 
 def test_bazos_subdomain_url():
     scraper = BazosScraper()
-    ads = scraper.parse_listings(BAZOS_HTML, "python", base_domain="https://prace.bazos.cz")
+    ads = scraper.parse_listings(
+        BAZOS_HTML, "python", base_domain="https://prace.bazos.cz"
+    )
     assert len(ads) == 1
     assert ads[0].url == "https://prace.bazos.cz/detail/123"
 
 
 def test_bazos_extract_base():
-    assert BazosScraper._extract_base("https://prace.bazos.cz/") == "https://prace.bazos.cz"
+    assert (
+        BazosScraper._extract_base("https://prace.bazos.cz/")
+        == "https://prace.bazos.cz"
+    )
     assert BazosScraper._extract_base("https://www.bazos.cz/") == "https://www.bazos.cz"
-    assert BazosScraper._extract_base("https://prace.bazos.cz/brigada/") == "https://prace.bazos.cz"
+    assert (
+        BazosScraper._extract_base("https://prace.bazos.cz/brigada/")
+        == "https://prace.bazos.cz"
+    )
 
 
 def test_jobs_parse_listings():
@@ -127,6 +146,17 @@ def test_jobs_empty_html():
     scraper = JobsScraper()
     ads = scraper.parse_listings("<html></html>", "python")
     assert ads == []
+
+
+def test_jobs_broken_selector_logs(caplog):
+    """M4 fix: no cards found -> error log."""
+    import logging
+
+    scraper = JobsScraper()
+    ads = scraper.parse_listings('<div class="totally-different">x</div>', "python")
+    assert ads == []
+    assert any("0 cards" in r.message for r in caplog.records)
+    assert caplog.records[-1].levelno == logging.ERROR
 
 
 def test_jobs_scrape_all_stops_on_empty():
@@ -152,6 +182,17 @@ def test_pracecz_empty_html():
     scraper = PraceczScraper()
     ads = scraper.parse_listings("<html></html>", "java")
     assert ads == []
+
+
+def test_pracecz_broken_selector_logs(caplog):
+    """M4 fix: no cards found -> error log."""
+    import logging
+
+    scraper = PraceczScraper()
+    ads = scraper.parse_listings('<div class="totally-different">x</div>', "java")
+    assert ads == []
+    assert any("0 cards" in r.message for r in caplog.records)
+    assert caplog.records[-1].levelno == logging.ERROR
 
 
 def test_pracecz_scrape_all_stops_on_empty():
@@ -204,8 +245,12 @@ def test_ad_to_dict():
 
 def test_ad_to_dict_all_fields():
     ad = Ad(
-        title="Test", url="http://example.com", portal="jobs",
-        company="Acme", location="Brno", salary="60000",
+        title="Test",
+        url="http://example.com",
+        portal="jobs",
+        company="Acme",
+        location="Brno",
+        salary="60000",
     )
     d = ad.to_dict()
     assert d["company"] == "Acme"

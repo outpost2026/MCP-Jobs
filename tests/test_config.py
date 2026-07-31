@@ -49,7 +49,10 @@ def test_config_from_yaml(tmp_path: Path):
 
 def test_config_portal_categories():
     import tempfile
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False, encoding="utf-8"
+    ) as f:
         f.write(SAMPLE_YAML)
         config_path = f.name
 
@@ -68,7 +71,10 @@ def test_config_portal_categories():
 
 def test_config_queries():
     import tempfile
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False, encoding="utf-8"
+    ) as f:
         f.write(SAMPLE_YAML)
         config_path = f.name
 
@@ -92,12 +98,14 @@ def test_config_queries():
 
 def test_config_not_found():
     import pytest
+
     with pytest.raises(FileNotFoundError):
         UserConfig.from_yaml("/nonexistent/path.yaml")
 
 
 def test_config_empty(tmp_path: Path):
     import pytest
+
     empty = tmp_path / "empty.yaml"
     empty.write_text("", encoding="utf-8")
     with pytest.raises(ValueError):
@@ -106,8 +114,11 @@ def test_config_empty(tmp_path: Path):
 
 def test_config_default_user():
     import tempfile
+
     minimal = "portals: {}\nqueries: {}\n"
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False, encoding="utf-8"
+    ) as f:
         f.write(minimal)
         config_path = f.name
 
@@ -127,32 +138,37 @@ def test_from_yaml_string():
 
 def test_from_yaml_string_empty():
     import pytest
+
     with pytest.raises(ValueError, match="Empty YAML"):
         UserConfig.from_yaml_string("")
 
 
 def test_from_yaml_string_invalid_yaml():
     import pytest
+
     with pytest.raises(Exception):
         UserConfig.from_yaml_string(": broken yaml :")
 
 
-def test_from_yaml_malformed_boolean_logged():
-    """Malformed boolean expression triggers warning but does not crash."""
+def test_from_yaml_malformed_boolean_fails_fast():
+    """Malformed boolean expression now raises ValueError (fail-fast, M1 fix)."""
     from pathlib import Path
     import tempfile
+    import pytest
+
     yaml = """
     portals: {}
     queries:
       bad_query:
         boolean: "python AND AND java"
     """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False, encoding="utf-8"
+    ) as f:
         f.write(yaml)
         tmp = f.name
     try:
-        config = UserConfig.from_yaml(Path(tmp))
-        assert "bad_query" in config.queries
-        assert config.queries["bad_query"].boolean == "python AND AND java"
+        with pytest.raises(ValueError, match="malformed boolean"):
+            UserConfig.from_yaml(Path(tmp))
     finally:
         Path(tmp).unlink(missing_ok=True)

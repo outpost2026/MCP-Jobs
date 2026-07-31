@@ -80,13 +80,95 @@ def test_salary_filter_unparseable():
 
 def test_dedup_normalized():
     ads = [
-        Ad(title="CNC Programátor", url="http://x/1", portal="jobs", company="ABC s.r.o."),
-        Ad(title="CNC Programátor", url="http://x/1", portal="jobs", company="ABC s.r.o."),
-        Ad(title="  CNC Programátor  ", url="http://x/2", portal="jobs", company="  ABC S.R.O.  "),
+        Ad(
+            title="CNC Programátor",
+            url="http://x/1",
+            portal="jobs",
+            company="ABC s.r.o.",
+        ),
+        Ad(
+            title="CNC Programátor",
+            url="http://x/1",
+            portal="jobs",
+            company="ABC s.r.o.",
+        ),
+        Ad(
+            title="  CNC Programátor  ",
+            url="http://x/2",
+            portal="jobs",
+            company="  ABC S.R.O.  ",
+        ),
     ]
     result = _dedup(ads)
     assert len(result) == 1
     assert result[0].url == "http://x/1"
+
+
+def test_dedup_same_title_company_different_location_kept():
+    """C1 fix: same title+company, different URL and location -> both kept."""
+    ads = [
+        Ad(
+            title="Technik",
+            url="http://x/1",
+            portal="jobs",
+            company="ABC s.r.o.",
+            location="Praha",
+        ),
+        Ad(
+            title="Technik",
+            url="http://x/2",
+            portal="jobs",
+            company="ABC s.r.o.",
+            location="Brno",
+        ),
+    ]
+    result = _dedup(ads)
+    assert len(result) == 2
+
+
+def test_dedup_fuzzy_drop_logs_warning(caplog):
+    """Fuzzy hit on different URL now logs a warning (C1 fix)."""
+    import logging
+
+    ads = [
+        Ad(
+            title="Technik",
+            url="http://x/1",
+            portal="jobs",
+            company="ABC s.r.o.",
+            location="Praha",
+        ),
+        Ad(
+            title="Technik",
+            url="http://x/2",
+            portal="jobs",
+            company="ABC s.r.o.",
+            location="Praha",
+        ),
+    ]
+    with caplog.at_level(logging.WARNING):
+        _dedup(ads)
+    assert any("Dedup: fuzzy hit" in r.message for r in caplog.records)
+
+
+def test_salary_filter_bazos_price_fallback():
+    """M3 fix: bazos ad with price (no salary) is filtered by price."""
+    ad = Ad(title="CNC", url="http://x/1", portal="bazos", price="45 000 Kč")
+    assert _salary_filter(ad, 40000) is True
+    ad_low = Ad(title="CNC", url="http://x/2", portal="bazos", price="30 000 Kč")
+    assert _salary_filter(ad_low, 40000) is False
+
+
+def test_salary_filter_uses_salary_over_price():
+    """When both present, salary wins (jobs/pracecz ads)."""
+    ad = Ad(
+        title="Dev",
+        url="http://x/1",
+        portal="jobs",
+        salary="60 000 Kč",
+        price="30 000 Kč",
+    )
+    assert _salary_filter(ad, 40000) is True
 
 
 def test_empty_boolean_skipped():
@@ -94,6 +176,7 @@ def test_empty_boolean_skipped():
     from mcp_jobs.config import UserConfig
     from pathlib import Path
     import tempfile, json
+
     yaml = """
     portals: {}
     queries:
@@ -110,3 +193,80 @@ def test_empty_boolean_skipped():
         assert "empty_query" not in result
     finally:
         Path(tmp).unlink(missing_ok=True)
+
+
+def test_detail_cache_retries_failed_fetch():
+    """M2 fix: failed detail fetch is NOT cached, next query retries."""
+    from mcp_jobs.config import UserConfig
+    from mcp_jobs import providers as providers_mod
+
+    calls = {"n": 0}
+
+    class FlakyProvider:
+        name = "flaky"
+
+        def __init__(self):
+            self.stats = type(
+                "FakeStats",
+                (),
+                {
+                    "to_dict": lambda self: {
+                        "requests_ok": 0,
+                        "requests_failed": 0,
+                    },
+                    "errors": [],
+                },
+            )()
+
+        def scrape_all(self, url, max_pages=5, params=None):
+            return [
+                Ad(
+                    title="Python Dev",
+                    url="http://x/1",
+                    portal="flaky",
+                    description="",
+                    company="Acme",
+                )
+            ]
+
+        def fetch_detail(self, ad):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("transient")
+            return "Full detail description text"
+
+    orig = providers_mod.REGISTRY.get("flaky")
+    providers_mod.REGISTRY["flaky"] = FlakyProvider
+    try:
+        config = UserConfig(
+            portals={
+                "flaky": __import__(
+                    "mcp_jobs.config", fromlist=["PortalConfig"]
+                ).PortalConfig(
+                    enabled=True,
+                    categories=[
+                        __import__(
+                            "mcp_jobs.config", fromlist=["CategoryConfig"]
+                        ).CategoryConfig(url="http://x", pages=1)
+                    ],
+                )
+            },
+            queries={
+                "q1": __import__(
+                    "mcp_jobs.config", fromlist=["QueryConfig"]
+                ).QueryConfig(boolean="python"),
+                "q2": __import__(
+                    "mcp_jobs.config", fromlist=["QueryConfig"]
+                ).QueryConfig(boolean="python"),
+            },
+        )
+        pipeline = SearchPipeline(config)
+        results, _, _ = pipeline.run()
+        assert calls["n"] == 2, f"expected 2 detail fetches (retry), got {calls['n']}"
+        assert "q1" in results and "q2" in results
+        assert results["q1"][0].description == "Full detail description text"
+    finally:
+        if orig is None:
+            del providers_mod.REGISTRY["flaky"]
+        else:
+            providers_mod.REGISTRY["flaky"] = orig

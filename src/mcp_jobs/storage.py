@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
 from .models import Ad
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -154,8 +157,10 @@ class Storage:
             try:
                 with path.open("r", encoding="utf-8") as f:
                     existing = json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Failed to load correlation cache %s — starting fresh: %s", path, e
+                )
 
         for r in records:
             existing.append(
@@ -199,7 +204,7 @@ class Storage:
     @staticmethod
     def rag_index_md(ads: list[Ad], title: str = "RAG INDEX") -> str:
         lines = [
-            f"# {title} - {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            f"# {title} - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
             "---",
             "",
         ]

@@ -10,7 +10,7 @@ from mcp.server.fastmcp import FastMCP
 
 from . import __version__
 from .config import UserConfig
-from .matcher import Matcher, matches_ad
+from .matcher import matches_ad
 from .models import Ad
 from .pipeline import SearchPipeline
 from .providers import ACTIVE_PORTALS
@@ -369,7 +369,7 @@ def search_expert(
     parts = [desc_expr] if desc_expr else []
     if location.strip():
         loc_words = [w.strip() for w in location.strip().split() if w.strip()]
-        loc_expr = " AND ".join(f"({w})" for w in loc_words)
+        loc_expr = " OR ".join(f"({w})" for w in loc_words)
         parts.append(f"({loc_expr})" if len(loc_words) > 1 else loc_expr)
     boolean_query = " AND ".join(parts) if parts else ""
     if exclude_terms.strip():

@@ -122,8 +122,8 @@ class UserConfig:
             except TypeError as e:
                 raise TypeError(f"Query {name!r}: invalid query config: {e}") from e
             if qc.boolean and not validate_boolean(qc.boolean):
-                logger.warning(
-                    "Query %r has malformed boolean expression: %r", name, qc.boolean
+                raise ValueError(
+                    f"Query {name!r}: malformed boolean expression: {qc.boolean!r}"
                 )
             queries[name] = qc
 

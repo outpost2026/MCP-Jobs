@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 import warnings
 from abc import ABC, abstractmethod
@@ -9,6 +10,8 @@ from typing import Optional
 
 from ..http import HttpClient
 from ..models import Ad
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -94,7 +97,8 @@ class BaseScraper(ABC):
                     body = el.get_text(strip=True)
                     if body:
                         return body
-        except Exception:
+        except Exception as e:
+            logger.warning("Detail parse failed for %s: %s", url, e)
             return None
         return None
 

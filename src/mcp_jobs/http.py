@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from typing import Optional
 
@@ -7,6 +8,8 @@ import requests
 from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+logger = logging.getLogger(__name__)
 
 
 class HttpClient:
@@ -50,14 +53,17 @@ class HttpClient:
             time.sleep(self.request_delay - elapsed)
         self._last_request = time.time()
 
-    def get_soup(self, url: str, parser: str = "html.parser") -> Optional[BeautifulSoup]:
+    def get_soup(
+        self, url: str, parser: str = "html.parser"
+    ) -> Optional[BeautifulSoup]:
         try:
             self._throttle()
             resp = self.session.get(url, timeout=self.timeout)
             resp.raise_for_status()
             resp.encoding = resp.apparent_encoding or "utf-8"
             return BeautifulSoup(resp.text, parser)
-        except requests.RequestException:
+        except requests.RequestException as e:
+            logger.warning("GET %s failed: %s", url, e)
             return None
 
     def get_text(self, url: str) -> Optional[str]:
@@ -67,12 +73,14 @@ class HttpClient:
             resp.raise_for_status()
             resp.encoding = resp.apparent_encoding or "utf-8"
             return resp.text
-        except requests.RequestException:
+        except requests.RequestException as e:
+            logger.warning("GET %s failed: %s", url, e)
             return None
 
     def is_url_alive(self, url: str) -> bool:
         try:
             resp = self.session.head(url, timeout=10, allow_redirects=True)
             return resp.ok
-        except requests.RequestException:
+        except requests.RequestException as e:
+            logger.warning("HEAD %s failed: %s", url, e)
             return False

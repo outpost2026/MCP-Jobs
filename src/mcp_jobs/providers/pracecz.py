@@ -119,7 +119,12 @@ class PraceczScraper(BaseScraper):
                 skipped += 1
                 logger.warning("%s: failed to parse card: %s", self.name, e)
 
-        if cards and not ads:
+        if not cards:
+            logger.error(
+                "%s: container selector returned 0 cards — likely broken (page layout change)",
+                self.name,
+            )
+        elif cards and not ads:
             logger.error(
                 "%s: found %d cards but parsed 0 ads — selector likely broken",
                 self.name,

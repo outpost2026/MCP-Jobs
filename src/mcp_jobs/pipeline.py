@@ -25,9 +25,12 @@ _SALARY_NUM_RE = re.compile(r"\d{1,3}(?:[ \u00a0]\d{3})+|\d+")
 
 
 def _salary_filter(ad: Ad, min_salary: int) -> bool:
-    if min_salary <= 0 or not ad.salary:
+    if min_salary <= 0:
         return True
-    raw_numbers = _SALARY_NUM_RE.findall(ad.salary)
+    salary = ad.salary or ad.price
+    if not salary:
+        return True
+    raw_numbers = _SALARY_NUM_RE.findall(salary)
     numbers = [int(n.replace(" ", "").replace("\u00a0", "")) for n in raw_numbers]
     if not numbers:
         return True
@@ -36,15 +39,29 @@ def _salary_filter(ad: Ad, min_salary: int) -> bool:
 
 def _dedup(ads: list[Ad]) -> list[Ad]:
     seen_url: set[str] = set()
-    seen_fuzzy: set[tuple[str, str]] = set()
+    seen_fuzzy: set[tuple[str, str, str]] = set()
     result: list[Ad] = []
     for ad in ads:
         url_key = ad.url
-        fuzzy_key = (ad.title.lower().strip(), (ad.company or "").lower().strip())
+        fuzzy_key = (
+            ad.title.lower().strip(),
+            (ad.company or "").lower().strip(),
+            (ad.location or "").lower().strip(),
+        )
         if url_key not in seen_url and fuzzy_key not in seen_fuzzy:
             seen_url.add(url_key)
             seen_fuzzy.add(fuzzy_key)
             result.append(ad)
+        elif url_key in seen_url:
+            logger.warning("Dedup: duplicate URL dropped: %s", ad.url)
+        else:
+            logger.warning(
+                "Dedup: fuzzy hit %r (company=%r, location=%r) dropped different URL %s",
+                ad.title,
+                ad.company,
+                ad.location,
+                ad.url,
+            )
     return result
 
 
@@ -80,13 +97,15 @@ class SearchPipeline:
                                 provider_cls() if provider_cls else None
                             )
                         provider = detail_providers.get(ad.portal)
-                        try:
-                            detail_cache[ad.url] = (
-                                provider.fetch_detail(ad) if provider else None
-                            )
-                        except Exception as e:
-                            logger.warning("detail fetch failed for %s: %s", ad.url, e)
-                            detail_cache[ad.url] = None
+                        if provider:
+                            try:
+                                detail = provider.fetch_detail(ad)
+                                if detail:
+                                    detail_cache[ad.url] = detail
+                            except Exception as e:
+                                logger.warning(
+                                    "detail fetch failed for %s: %s", ad.url, e
+                                )
                     detail = detail_cache.get(ad.url)
                     if detail:
                         ad.description = detail
