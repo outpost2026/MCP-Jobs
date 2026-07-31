@@ -31,7 +31,7 @@ portals:
     enabled: true
     categories:
       - url: "https://www.prace.cz/nabidky/hlavni-mesto-praha/praha/"
-        pages: 10
+        pages: 25
 
   nyx:
     enabled: false
@@ -62,57 +62,57 @@ _x_exclude: &_x_exclude
 
 queries:
   python_ai_engineer:
-    boolean: "(python AND (ai OR ml OR machine_learning OR automatizace OR scraping OR scraper OR backend OR data OR developer OR vyvojar OR programator OR inzenyr OR analyst)) NOT (lektor OR kurz OR skoleni OR vyuka)"
+    boolean: "(python AND (ai OR ml OR machine_learning OR automatizace OR scraping OR scraper OR backend OR data OR developer OR engineer OR product OR vyvojar OR programator OR inzenyr OR analyst)) NOT (lektor OR kurz OR skoleni OR vyuka)"
     exclude: *_x_exclude
     min_salary: 0
-    locations: []
+    locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
     portals: ["jobs", "pracecz", "bazos"]
 
   ai_llm_engineer:
-    boolean: "(llm OR openai OR gpt OR (ai AND (engineer OR developer OR vyvojar OR programator OR inzenyr))) NOT (lektor OR kurz OR skoleni)"
+    boolean: "(llm OR openai OR gpt OR (ai AND (engineer OR architect OR developer OR vyvojar OR programator OR inzenyr))) NOT (lektor OR kurz OR skoleni)"
     exclude: *_x_exclude
     min_salary: 0
-    locations: []
+    locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
     portals: ["jobs", "pracecz"]
 
   mcp_agentic:
     boolean: "(mcp OR agentic OR copilot OR chatbot OR (ai AND (agent OR asistent OR asistenta OR asistentem OR integrace OR automatizace)) OR (llm AND (engineer OR developer OR vyvojar OR programator OR integrace)) OR (rag AND (engineer OR developer)) OR (automatizace AND (procesu OR rpa)) OR (jazykovy AND model) OR (jazykovym AND modelem) OR (velky AND jazykovy AND model)) NOT (lektor OR kurz OR skoleni)"
     exclude: *_x_exclude
     min_salary: 0
-    locations: []
+    locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
     portals: ["jobs", "pracecz"]
 
   data_engineering:
     boolean: "(data AND (engineer OR inzenyr OR analyst OR pipeline OR etl OR warehouse OR streaming OR bigdata OR (machine AND learning) OR science OR scientist)) NOT (kurz OR skoleni OR lektor)"
     exclude: *_x_exclude
     min_salary: 0
-    locations: []
+    locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
     portals: ["jobs", "pracecz"]
 
   devops_ci_cd:
     boolean: "(devops OR (ci AND cd) OR docker OR kubernetes OR terraform OR ansible OR (infrastructure AND code) OR site_reliability OR sre)"
     exclude: *_x_exclude
     min_salary: 0
-    locations: []
+    locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
     portals: ["jobs", "pracecz"]
 
   prumyslova_automatizace:
     boolean: "(plc OR scada OR dcs OR robotika OR robotizace OR cobot OR (automatizace AND (vyrobni OR vyroba OR linka OR prumysl OR prumyslova OR prumyslove OR industrie)) OR (siemens AND (plc OR tia OR automatizace)) OR (control AND (automation OR automatizace)) OR (automation AND (engineer OR inzenyr OR projektant OR industrial OR plc OR robot OR manufacturing))) NOT (rpa OR uipath OR (power AND automate) OR obchodni OR administrativa)"
     exclude: *_x_exclude
     min_salary: 0
-    locations: []
+    locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
     portals: ["jobs", "pracecz", "bazos"]
 
   cnc_cam_automation:
     boolean: "(cnc OR frezar OR frezarka OR frezovani OR (cam AND software)) AND (programovani OR automatizace OR software OR obrabeni OR nastaveni) NOT (obsluha OR operator)"
     exclude: *_x_exclude
     min_salary: 0
-    locations: []
+    locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
     portals: ["pracecz", "bazos"]
 
   reverse_engineering:
     boolean: "(reverse AND (engineering OR engineer OR inzenyr)) OR (scraping OR scraper OR dataminer OR (data AND mining)) OR (decompil OR disassembl) OR (firmware AND analysis) NOT (kurz OR skoleni OR lektor)"
     exclude: *_x_exclude
     min_salary: 0
-    locations: []
+    locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
     portals: ["jobs", "pracecz"]
