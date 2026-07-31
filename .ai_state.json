@@ -1,13 +1,13 @@
 {
   "repo": "MCP-Jobs",
   "created": "2026-07-13T22:00:00+00:00",
-  "phase": "06-refactor-kalibrace",
+  "phase": "07-cross-audit",
   "status": "active",
-  "branch": "refactor",
+  "branch": "main",
   "remote": "https://github.com/outpost2026/MCP-Jobs.git",
   "last_session": {
-    "value": "Iteration 6 (2026-07-31): refactor branch pushnut. Kalibrace konfiguraci do 2 profilu: (A) AI-native primary matrix (config.yaml: cnc_cam_automation, reverse_engineering, prumyslova_automatizace, AI-native), (B) legacy_manual fallback (config_legacy_manual.yaml: 6 manual trades + cleaned cnc_jobs). Korekce balik 1-5 legacy profilu (semanticka analyza): nemecko spam 5->0, spravce_budov chytil facility scope, elektrikar nasel pracecz trh, strechy=[praha], elektrotechnik, cnc split. jobs.cz Praha 5->20 stranek, bazos jen pro cnc/prumysl. lazy detail fetch (Reseni B) pro full-text description. Profilove odlisovani vystupu: etl_{PROFILE}_{ts}.json/.md + latest_{PROFILE}. Architektonicke srovnani MCP-Jobs vs scrapers: KB report ec1cc43. Klicove metriky: MCP-AI 15 uniq/99.9s, MCP-LEG 48 uniq/116.6s, scrapers-fresh 21 uniq; pruniky 7-15%; doporuceno ponechat obe architektury. HEAD f1b54f4.",
-    "updated": "2026-07-31T22:30:00+00:00"
+    "value": "Iteration 7 (2026-07-31): cross-LLM audit proveden de novo na remote (LLM auditor prosled repo zive, chain-of-thought). 103 testu PASS, coverage 66% (pipeline 55%, storage 34%, server 57%, http 67%, cli 0%). Nalezy verifikovany proti kodu: C1 dedup fuzzy-key kolize (pipeline.py:43, ticha ztrata dat u firem s pobockami), C2 silent errors (http.py 3x return None bez loggeru, storage.py:157 except Exception: pass), M1 malformed boolean -> ticha 0 shod (config.py:124), M2 detail_cache cachuje failure, M3 bazos price vs salary no-op, M4 container selector tichy 0 ads, M5 synthetic_guardrails.py mimo pytest, M6 chybi [dev] extra, M7 README stale (97 vs 103). Vyvracena hypoteza: fastmcp dep mismatch (fastmcp strhava mcp tranzitivne, import OK). main=refactor ff-merge bb3905a. CROSS_AUDIT_HANDOFF + CROSS_AUDIT_MCP-jobs_v1 v KB (02_ANALYZY/05_mcp_jobs/). HEAD bb3905a.",
+    "updated": "2026-07-31T23:30:00+00:00"
   },
   "profiles": {
     "ai_native": {
@@ -22,6 +22,16 @@
     }
   },
   "pending": [
+    "P0-C1: dedup fuzzy_key kolize — zahrnout lokalitu/URL NEBO logovat zahoz (pipeline.py:43)",
+    "P0-C2: silent errors — import loggeru do http.py/storage.py, nahradit return None/pass za logger.warning",
+    "P1-M1: malformed boolean fail-fast (raise pri load) NEBO skip + explicitni error vystup (config.py:124)",
+    "P1-M2: detail_cache retry failed fetch (pipeline.py:84-89)",
+    "P1-M3: bazos salary fallback na price (salary filtr no-op pro bazos)",
+    "P1-M4: container guard if not cards: logger.error napric providers",
+    "P1-M5: rename synthetic_guardrails.py do pytest konvence + odstranit Windows hardcode",
+    "P1-M6: pyproject [project.optional-dependencies] dev extra (README pip install -e .[dev] selhava)",
+    "P1-M7: README sync — 103 testu, aktualni tool sada",
+    "P2: chybejici testy (negativni dedup, malformed boolean, http exception, salary price fallback, container broken log) + dead import Matcher + search_expert location OR + _default_category praha hardcode",
     "Security threat model (chybejici layer vsech auditu)",
     "Hosted demo (Railway/Render)",
     "LinkedIn Analyzer integrace",
@@ -29,6 +39,9 @@
     "Sladit nemecko-blocklist / exclude listy mezi MCP-Jobs config a scrapers topics.csv (scrapers: vsech 93 radku blokovano)"
   ],
   "completed": [
+    "main=refactor fast-forward merge bb3905a (2026-07-31)",
+    "Cross-LLM audit (de novo, na remote): 103 testu PASS, coverage 66%, C1/C2 CRITICAL + M1-M7 MAJOR identifikovany a verifikovany",
+    "CROSS_AUDIT_HANDOFF_MCP-jobs_2026-07-31.md + CROSS_AUDIT_MCP-jobs_v1_2026-07-31.md v B2B-Knowledge-Base/02_ANALYZY/05_mcp_jobs/",
     "Phase 06: data integrity + monitoring + persistence (43d17bd)",
     "Correlation cache save z run_etl.py + run_etl_metrics.py (579883e)",
     "Lazy detail fetch (Reseni B): full-text description z detail stranky (8e2eb17)",
@@ -43,12 +56,13 @@
     "Architektonicke srovnani MCP-Jobs vs scrapers -> B2B-Knowledge-Base/02_ANALYZY/05_mcp_jobs/srovnani_architektur_mcp_vs_scrapers_2026-07-31.md (ec1cc43)"
   ],
   "key_findings": {
-    "comparison_2026-07-31": "MCP-AI 15 uniq/99.9s, MCP-LEG 48 uniq/116.6s, scrapers-fresh 21 uniq. Pruniky: MCP-AI n scrapers-fresh = 1/15 (7%), MCP-LEG n scrapers-fresh = 7/48 (15%). Scrapers MAJI vetsi prosivani (168 uniq cumulative), ale jen 21 fresh. Doporuceni: ponechat obe architektury."
+    "comparison_2026-07-31": "MCP-AI 15 uniq/99.9s, MCP-LEG 48 uniq/116.6s, scrapers-fresh 21 uniq. Pruniky: MCP-AI n scrapers-fresh = 1/15 (7%), MCP-LEG n scrapers-fresh = 7/48 (15%). Scrapers MAJI vetsi prosivani (168 uniq cumulative), ale jen 21 fresh. Doporuceni: ponechat obe architektury.",
+    "cross_audit_2026-07-31": "Jadro robustni (boolean AST, NFKD, 103 testu PASS, rate limiting) — nadprumer vs konkurence. Slabiny v tiche odolnosti: silent errors (http/storage), ticha ztrata dat (dedup), ticha 0 shod (malformed boolean). Public delivery readiness: NE (chybi CI/CD, coverage, dev extra, guardrails test rename, README stale). Vyvracena hypoteza: fastmcp dep mismatch."
   },
   "dependencies": {
     "linkedin-mcp-custom": "EROI scoring pattern + cross-MCP integrace",
-    "B2B-Knowledge-Base": "pitevni knihy, KB write target, analyzy",
+    "B2B-Knowledge-Base": "pitevni knihy, KB write target, analyzy, cross-audit artefakty",
     "scrapers": "paralelni legacy pipeline (4 scrapery + Master_Prace_Index); topics.csv = zdroj nemecko-blocklistu"
   },
-  "next_phase": "Phase 07 — Security hardening + hosted demo"
+  "next_phase": "Phase 08 — Cross-audit fix balik (P0/P1) + Security hardening"
 }
