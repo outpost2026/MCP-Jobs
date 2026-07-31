@@ -1,6 +1,10 @@
-# MCP-Jobs user configuration
-# Edit this file to define your portals, categories, and search queries.
-# The engine is universal — personalization is in this YAML only.
+# MCP-Jobs user configuration — PRIMARY MATRIX (AI-native)
+# =========================================================
+# Kalibrováno 2026-07-31 dle kompetenčního auditu (CV_AKTUALIZACE_2026-07-31):
+# identita autora = "AI-Native Python Engineer · MCP Architect · Multi-Domain Reverse Engineer".
+# 6/8 manuálních dotazů bylo přesunuto do config_legacy_manual.yaml (fallback).
+# Fallback přepnutí: python scripts/run_etl.py --config config_legacy_manual.yaml
+# Pozn. matcher normalizuje diakritiku + word-boundary; "/" je non-word (ci AND cd chyti "ci/cd").
 
 user: "default"
 
@@ -33,59 +37,75 @@ portals:
     enabled: false
     categories: []
 
+# ── Společný exclude pool (odfiltruje nabídky služeb / osobní inzeráty) ──
+_x_exclude: &_x_exclude
+  - agentura
+  - poptavam
+  - poptavame
+  - shanim
+  - hledam
+  - do tymu
+  - dodam
+  - firmy
+  - hledam praci
+  - hledame kolegu
+  - ico
+  - jmenuji se
+  - nabizim
+  - nabizime
+  - nabor
+  - parta
+  - provadim
+  - provadime
+  - prijmeme
+  - prijima objednavky
+
 queries:
-  python_jobs:
-    boolean: "(python AND (developer OR vyvojar OR programator OR inzenyr OR automation OR scraping OR backend OR data)) AND NOT senior"
-    exclude: ["agentura", "nabizim", "nabizime", "prodavame", "hledam praci", "hledame kolegu", "do tymu", "dodam", "firmy", "ico", "jmenuji se", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "lektor", "kurz"]
+  python_ai_engineer:
+    boolean: "(python AND (ai OR ml OR machine_learning OR automatizace OR scraping OR scraper OR backend OR data OR developer OR vyvojar OR programator OR inzenyr OR analyst)) NOT (lektor OR kurz OR skoleni OR vyuka)"
+    exclude: *_x_exclude
+    min_salary: 0
+    locations: []
+    portals: ["jobs", "pracecz", "bazos"]
+
+  ai_llm_engineer:
+    boolean: "(llm OR openai OR gpt OR (ai AND (engineer OR developer OR vyvojar OR programator OR inzenyr))) NOT (lektor OR kurz OR skoleni)"
+    exclude: *_x_exclude
     min_salary: 0
     locations: []
     portals: ["jobs", "pracecz"]
 
-  cnc_jobs:
-    boolean: "(cnc OR frezar OR programovani OR serizovani)"
-    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "personalni", "pronajem", "provadim", "provadime", "prijmeme", "prijima objednavky", "ubytovn", "zprostredkovani"]
-    min_salary: 0
-    locations: ["brno", "ostrava", "praha"]
-    portals: ["bazos", "pracecz"]
-
-  elektrikar:
-    boolean: "(elektrikar OR elektroinstalace OR autoelektrikar)"
-    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "autoskola", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "prodavame", "provadim", "provadime", "prijmeme", "prijima objednavky", "revize"]
-    min_salary: 0
-    locations: ["praha"]
-    portals: ["bazos", "pracecz", "jobs"]
-
-  spravce:
-    boolean: "(spravce OR správce OR (sprava AND budov) OR (facility AND manager) OR (spravce AND nemovitosti) OR (spravce AND arealu) OR (spravce AND objektu))"
-    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "it", "server", "software", "síť", "sit", "ict", "linux", "network", "e-mail", "email", "informacnich", "informačních", "ne spravce", "ne správce", "vyvojar", "vyvojář", "aplikaci", "system", "systemu", "systemov", "dukovany"]
-    min_salary: 0
-    locations: ["praha"]
-    portals: ["bazos", "pracecz", "jobs"]
-
-  udrzbar:
-    boolean: "(udrzbar OR udrzba OR udrzbarka OR maintenance OR (servisni AND technik) OR (technik AND udrzby) OR (technik AND udrzba) OR údržbář OR údržba OR údržbářka)"
-    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "it spravce", "it správce", "uklizec", "uklízeč", "uklid", "úklid", "ict", "laborator", "laboratoř", "it podpora", "sitovy", "síťový", "sitovy technik", "sitova infrastruktura", "sitova", "sitove"]
-    min_salary: 0
-    locations: ["praha"]
-    portals: ["bazos", "pracecz", "jobs"]
-
-  zahradnik:
-    boolean: "(zahradnik OR zahradník OR zahradni OR (sekani AND travy) OR (sekání AND trávy) OR (zahradni AND prace) OR (zahradní AND práce) OR (pomohu AND na AND zahrade) OR (pomoc AND na AND zahradu) OR (uprava AND zahrady) OR (zahradnicke AND prace) OR (zahradnické AND práce) OR (jarni AND uprava AND zahrady) OR (jarní AND úprava AND zahrady))"
-    exclude: ["agentura", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "uklizecka", "štěně", "steně", "stene", "kuchyn", "sklad", "restaurace", "nádobí", "nádobi"]
+  mcp_agentic:
+    boolean: "(mcp OR agentic OR copilot OR chatbot OR (ai AND (agent OR asistent OR asistenta OR asistentem OR integrace OR automatizace)) OR (llm AND (engineer OR developer OR vyvojar OR programator OR integrace)) OR (rag AND (engineer OR developer)) OR (automatizace AND (procesu OR rpa)) OR (jazykovy AND model) OR (jazykovym AND modelem) OR (velky AND jazykovy AND model)) NOT (lektor OR kurz OR skoleni)"
+    exclude: *_x_exclude
     min_salary: 0
     locations: []
-    portals: ["bazos"]
+    portals: ["jobs", "pracecz"]
 
-  truhlar:
-    boolean: "(truhlar OR truhlář OR truhlarka OR truhlářka OR (vyroba AND nabytku) OR (výroba AND nábytku) OR (vyroba AND dreveneho) OR (výroba AND dřevěného) OR (montaz AND nabytku) OR (montáž AND nábytku) OR drevoobrabeni OR (dřevařská AND vyroba) OR stolar OR stolař)"
-    exclude: ["agentura", "brikety", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "odvoz", "palivove", "palivové", "parta", "prodavame", "prodám", "provadim", "provadime", "prijmeme", "prijima objednavky", "starozitne", "starožitné", "stary", "starý", "montér", "monter"]
+  data_engineering:
+    boolean: "(data AND (engineer OR inzenyr OR analyst OR pipeline OR etl OR warehouse OR streaming OR bigdata OR (machine AND learning) OR science OR scientist)) NOT (kurz OR skoleni OR lektor)"
+    exclude: *_x_exclude
     min_salary: 0
     locations: []
-    portals: ["bazos"]
+    portals: ["jobs", "pracecz"]
 
-  strechy:
-    boolean: "(strecha OR střecha OR pokryvac OR pokrývač OR okap OR krytina OR latovani OR strechy OR střechy OR (rekonstrukce AND strechy) OR (rekonstrukce AND střechy) OR (oprava AND strechy) OR (oprava AND střechy) OR (cisteni AND okapu) OR (čištění AND okapů) OR (lepeni AND strechy))"
-    exclude: ["agentura", "auto", "do tymu", "dodam", "firmy", "garaz", "garáž", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "karoserie", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky"]
+  devops_ci_cd:
+    boolean: "(devops OR (ci AND cd) OR docker OR kubernetes OR terraform OR ansible OR (infrastructure AND code) OR site_reliability OR sre OR (automation AND engineer))"
+    exclude: *_x_exclude
     min_salary: 0
     locations: []
-    portals: ["bazos"]
+    portals: ["jobs", "pracecz"]
+
+  cnc_cam_automation:
+    boolean: "(cnc OR frezar OR frezarka OR frezovani OR (cam AND software)) AND (programovani OR automatizace OR software OR obrabeni OR nastaveni) NOT (obsluha OR operator)"
+    exclude: *_x_exclude
+    min_salary: 0
+    locations: []
+    portals: ["pracecz", "bazos"]
+
+  reverse_engineering:
+    boolean: "(reverse AND (engineering OR engineer OR inzenyr)) OR (scraping OR scraper OR dataminer OR (data AND mining)) OR (decompil OR disassembl) OR (firmware AND analysis) NOT (kurz OR skoleni OR lektor)"
+    exclude: *_x_exclude
+    min_salary: 0
+    locations: []
+    portals: ["jobs", "pracecz"]
