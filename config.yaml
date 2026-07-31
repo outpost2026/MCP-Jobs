@@ -13,9 +13,9 @@ portals:
     enabled: true
     categories:
       - url: "https://www.jobs.cz/prace/praha/"
-        pages: 5
+        pages: 20
       - url: "https://www.jobs.cz/prace/brno/"
-        pages: 2
+        pages: 5
 
   bazos:
     enabled: true
@@ -66,7 +66,7 @@ queries:
     exclude: *_x_exclude
     min_salary: 0
     locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
-    portals: ["jobs", "pracecz", "bazos"]
+    portals: ["jobs", "pracecz"]
 
   ai_llm_engineer:
     boolean: "(llm OR openai OR gpt OR (ai AND (engineer OR architect OR developer OR vyvojar OR programator OR inzenyr))) NOT (lektor OR kurz OR skoleni)"
