@@ -7,6 +7,13 @@
 #   - ověření trhu manuálních prací
 # Přepnutí: python scripts/run_etl.py --config config_legacy_manual.yaml
 # Sdílí stejný engine, portály a korelační cache s config.yaml.
+#
+# Kalibrace 2026-07-31 (semanticka_analyza_legacy_profil):
+#   - blokace nemecko-spam trhu (bazos Praha = nemecke agentury)
+#   - strechy: lokalitni filtr [praha]
+#   - spravce_budov: rozsireni scope o facility/sprava
+#   - elektrikar_prumysl: + elektrotechnik/elektro (pracecz trh)
+#   - cnc_jobs: split obsluha/serizovani (programovani = AI-native cnc_cam)
 
 user: "default"
 profile: "LEGACY-MANUAL"
@@ -16,9 +23,9 @@ portals:
     enabled: true
     categories:
       - url: "https://www.jobs.cz/prace/praha/"
-        pages: 5
+        pages: 20
       - url: "https://www.jobs.cz/prace/brno/"
-        pages: 2
+        pages: 5
 
   bazos:
     enabled: true
@@ -34,58 +41,90 @@ portals:
     enabled: true
     categories:
       - url: "https://www.prace.cz/nabidky/hlavni-mesto-praha/praha/"
-        pages: 10
+        pages: 25
 
   nyx:
     enabled: false
     categories: []
 
+# ── Společný exclude pool (agentury / osobní inzeráty) ──
+_x_exclude_common: &_x_exclude_common
+  - agentura
+  - poptavam
+  - poptavame
+  - shanim
+  - hledam
+  - do tymu
+  - dodam
+  - firmy
+  - hledam praci
+  - hledame kolegu
+  - ico
+  - jmenuji se
+  - nabizim
+  - nabizime
+  - nabor
+  - parta
+  - provadim
+  - provadime
+  - prijmeme
+  - prijima objednavky
+
+# ── Blokace "práce v Německu" / ubytování / zprostředkování (bazos spam) ──
+_x_exclude_nemecko: &_x_exclude_nemecko
+  - nemecko
+  - nemecku
+  - fve
+  - ubytovanim
+  - ubytovani
+  - zprostredkovani
+
 queries:
   elektrikar_prumysl:
-    boolean: "(elektrikar OR elektroinstalace OR autoelektrikar) AND (prumysl OR vyroba OR automatizace OR servis)"
-    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "autoskola", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "prodavame", "provadim", "provadime", "prijmeme", "prijima objednavky", "revize"]
+    boolean: "(elektrikar OR elektroinstalace OR autoelektrikar OR elektrotechnik OR elektro) AND (prumysl OR vyroba OR automatizace OR servis) NOT (kurz OR skoleni OR lektor)"
+    exclude: [*_x_exclude_common, *_x_exclude_nemecko, "autoskola", "revize", "prodavame"]
     min_salary: 0
     locations: ["praha"]
     portals: ["bazos", "pracecz", "jobs"]
 
   udrzbar:
     boolean: "(udrzbar OR udrzba OR udrzbarka OR maintenance OR (servisni AND technik)) NOT (it OR software OR web OR datovy)"
-    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "uklizec", "uklízeč", "uklid", "úklid", "ict", "laborator", "laboratoř", "it podpora"]
+    exclude: [*_x_exclude_common, *_x_exclude_nemecko, "uklizec", "uklízeč", "uklid", "úklid", "ict", "laborator", "laboratoř", "it podpora"]
     min_salary: 0
     locations: ["praha"]
     portals: ["bazos", "pracecz", "jobs"]
 
   spravce_budov:
-    boolean: "(spravce OR správce) AND (budov OR arealu OR objektu OR nemovitosti) NOT (it OR system OR software)"
-    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "linux", "network", "e-mail", "email", "informacnich", "informačních", "vyvojar", "vyvojář", "aplikaci", "systemu", "systemov", "dukovany"]
+    boolean: "((spravce OR správce OR facility OR sprava) AND (budov OR arealu OR objektu OR nemovitosti)) NOT (it OR system OR software OR linux OR network OR e-mail OR email OR informacnich OR informačních OR vyvojar OR vyvojář OR aplikaci OR systemu OR systemov OR dukovany)"
+    exclude: [*_x_exclude_common, *_x_exclude_nemecko, "linux", "network", "e-mail", "email", "informacnich", "informačních", "vyvojar", "vyvojář", "aplikaci", "systemu", "systemov", "dukovany"]
     min_salary: 0
     locations: ["praha"]
     portals: ["bazos", "pracecz"]
 
   zahradnik:
     boolean: "(zahradnik OR zahradník OR zahradni OR (sekani AND travy))"
-    exclude: ["agentura", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky", "uklizecka", "štěně", "steně", "stene", "kuchyn", "sklad", "restaurace", "nádobí", "nádobi"]
+    exclude: [*_x_exclude_common, *_x_exclude_nemecko, "uklizecka", "štěně", "steně", "stene", "kuchyn", "sklad", "restaurace", "nádobí", "nádobi"]
     min_salary: 0
     locations: []
     portals: ["bazos"]
 
   truhlar:
     boolean: "(truhlar OR truhlář OR stolar OR stolař)"
-    exclude: ["agentura", "brikety", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "odvoz", "palivove", "palivové", "parta", "prodavame", "prodám", "provadim", "provadime", "prijmeme", "prijima objednavky", "starozitne", "starožitné", "stary", "starý", "montér", "monter"]
+    exclude: [*_x_exclude_common, *_x_exclude_nemecko, "brikety", "odvoz", "palivove", "palivové", "prodavame", "prodám", "starozitne", "starožitné", "stary", "starý", "montér", "monter"]
     min_salary: 0
     locations: []
     portals: ["bazos"]
 
   strechy:
     boolean: "(strecha OR střecha OR pokryvac OR pokrývač OR okap)"
-    exclude: ["agentura", "auto", "do tymu", "dodam", "firmy", "garaz", "garáž", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "karoserie", "nabizim", "nabizime", "nabor", "parta", "provadim", "provadime", "prijmeme", "prijima objednavky"]
+    exclude: [*_x_exclude_common, *_x_exclude_nemecko, "auto", "garaz", "garáž", "karoserie"]
     min_salary: 0
-    locations: []
+    locations: ["praha"]
     portals: ["bazos"]
 
   cnc_jobs:
-    boolean: "(cnc OR frezar OR programovani OR serizovani) NOT (nabizim OR nabizime OR provadim OR provadime)"
-    exclude: ["agentura", "poptavam", "poptavame", "shanim", "hledam", "do tymu", "dodam", "firmy", "hledam praci", "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime", "nabor", "parta", "personalni", "pronajem", "provadim", "provadime", "prijmeme", "prijima objednavky", "ubytovn", "zprostredkovani"]
+    boolean: "((cnc AND (operator OR obsluha OR serizovac OR serizovani OR nastavovac OR obrabeni)) OR (frezar AND (obsluha OR operator OR serizovani))) NOT (cam OR sprutcam OR mastercam OR postprocesing OR programovani OR programator OR nabizim OR nabizime OR provadim OR provadime)"
+    exclude: [*_x_exclude_common, *_x_exclude_nemecko, "personalni", "pronajem", "zprostredkovani", "ubytovn"]
     min_salary: 0
     locations: ["brno", "ostrava", "praha"]
     portals: ["bazos", "pracecz"]

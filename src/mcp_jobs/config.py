@@ -12,6 +12,17 @@ from .matcher import validate_boolean
 logger = logging.getLogger(__name__)
 
 
+def _flatten_exclude(items: list) -> list[str]:
+    """Flatten nested exclude lists (YAML anchor merges like [*a, *b, 'x'])."""
+    flat: list[str] = []
+    for it in items:
+        if isinstance(it, list):
+            flat.extend(_flatten_exclude(it))
+        elif isinstance(it, str) and it.strip():
+            flat.append(it)
+    return flat
+
+
 @dataclass
 class CategoryConfig:
     url: str
@@ -100,6 +111,12 @@ class UserConfig:
             )
         queries = {}
         for name, qdata in raw_queries.items():
+            try:
+                qdata = dict(qdata)
+            except (TypeError, ValueError):
+                pass
+            if isinstance(qdata.get("exclude"), list):
+                qdata["exclude"] = _flatten_exclude(qdata["exclude"])
             try:
                 qc = QueryConfig(**qdata)
             except TypeError as e:
