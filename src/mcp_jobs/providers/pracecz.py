@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup
@@ -14,6 +15,18 @@ logger = logging.getLogger(__name__)
 
 class PraceczScraper(BaseScraper):
     BASE_URL = "https://www.prace.cz"
+
+    # Potvrzeno dev console (2026-07-31): popis v CSS-module div
+    # s hashed class, ale prefix 'RichContent' je stabilní.
+    _DETAIL_BODY_SELECTORS = [
+        '[class*="RichContent"]',
+        "div.RichContent",
+    ]
+
+    def fetch_detail(self, ad: Ad) -> Optional[str]:
+        if not ad.url:
+            return None
+        return self._fetch_detail_text(ad.url, self._DETAIL_BODY_SELECTORS)
 
     @property
     def name(self) -> str:

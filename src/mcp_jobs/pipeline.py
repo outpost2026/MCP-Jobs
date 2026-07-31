@@ -9,6 +9,7 @@ from .config import UserConfig
 from .matcher import has_exclude_terms, matches_ad
 from .models import Ad
 from .providers import REGISTRY
+from .providers.base import BaseScraper
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,11 @@ class SearchPipeline:
         pool, all_stats, pool_sizes = self._scrape_all()
         results: dict[str, list[Ad]] = {}
 
+        # Lazy detail fetch: description doplnujeme jednou per URL
+        # (stejny inzerat muze projit vice query). Sdileny HttpClient.
+        detail_cache: dict[str, Optional[str]] = {}
+        detail_providers: dict[str, BaseScraper] = {}
+
         for name, qconf in self.config.queries.items():
             if not qconf.boolean:
                 logger.warning("Query %r has empty boolean expression — skipping", name)
@@ -66,6 +72,24 @@ class SearchPipeline:
                     continue
                 if not matches_ad(ad, qconf.boolean):
                     continue
+                if not ad.description:
+                    if ad.url not in detail_cache:
+                        if ad.portal not in detail_providers:
+                            provider_cls = REGISTRY.get(ad.portal)
+                            detail_providers[ad.portal] = (
+                                provider_cls() if provider_cls else None
+                            )
+                        provider = detail_providers.get(ad.portal)
+                        try:
+                            detail_cache[ad.url] = (
+                                provider.fetch_detail(ad) if provider else None
+                            )
+                        except Exception as e:
+                            logger.warning("detail fetch failed for %s: %s", ad.url, e)
+                            detail_cache[ad.url] = None
+                    detail = detail_cache.get(ad.url)
+                    if detail:
+                        ad.description = detail
                 if has_exclude_terms(
                     ad.title, qconf.exclude, description=ad.description or ""
                 ):

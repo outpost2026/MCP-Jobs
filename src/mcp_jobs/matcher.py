@@ -13,11 +13,12 @@ logger = logging.getLogger(__name__)
 
 def strip_diacritics(text: str) -> str:
     """Remove diacritics (accents) from text, preserving base ASCII letters.
-    
+
     'programátor' -> 'programator', 'č' -> 'c', 'ň' -> 'n', etc.
     """
     nfkd = unicodedata.normalize("NFKD", text)
     return "".join(c for c in nfkd if not unicodedata.category(c).startswith("M"))
+
 
 # ── Tokenizer ──────────────────────────────────────────────────────────
 
@@ -30,7 +31,9 @@ _TOKEN_SPEC = [
     ("WORD", r"[^\s()]+"),
 ]
 
-_TOKEN_RE = re.compile("|".join(f"(?P<{name}>{pattern})" for name, pattern in _TOKEN_SPEC), re.IGNORECASE)
+_TOKEN_RE = re.compile(
+    "|".join(f"(?P<{name}>{pattern})" for name, pattern in _TOKEN_SPEC), re.IGNORECASE
+)
 
 
 def _tokenize(text: str) -> list[tuple[str, str]]:
@@ -38,6 +41,7 @@ def _tokenize(text: str) -> list[tuple[str, str]]:
 
 
 # ── AST nodes ──────────────────────────────────────────────────────────
+
 
 class _Node:
     def evaluate(self, text: str) -> bool:
@@ -51,7 +55,9 @@ class _Word(_Node):
     def evaluate(self, text: str) -> bool:
         normalized_word = strip_diacritics(self.word.lower())
         normalized_text = strip_diacritics(text.lower())
-        return bool(re.search(r"\b" + re.escape(normalized_word) + r"\b", normalized_text))
+        return bool(
+            re.search(r"\b" + re.escape(normalized_word) + r"\b", normalized_text)
+        )
 
 
 class _Not(_Node):
@@ -81,6 +87,7 @@ class _Or(_Node):
 
 
 # ── Recursive-descent parser ───────────────────────────────────────────
+
 
 class _Parser:
     def __init__(self, tokens: list[tuple[str, str]]):
@@ -183,10 +190,16 @@ def has_exclude_terms(
     description: str = "",
 ) -> bool:
     """Check if any exclude term matches in title or description.
-    
+
     Uses word boundaries on title, substring matching on description
     (Czech inflection handling — 'autoelektrikáře' matches 'autoelektrikář').
     Both sides are NFKD-normalized for diacritics.
+
+    NOTE: single-word terms are ONLY applied to title. On the full-text
+    description they cause false positives ('hledam' matches "Koho hledáme",
+    'parta' matches "parťák") because every legit job ad uses this language.
+    Description matching is restricted to multi-word phrases ('hledam praci',
+    'prijima objednavky') that clearly indicate personal service offers.
     """
     if not exclude_terms:
         return False
@@ -200,13 +213,14 @@ def has_exclude_terms(
             continue
         if re.search(r"\b" + re.escape(t) + r"\b", normalized_title):
             return True
-        if normalized_desc and t in normalized_desc:
+        if normalized_desc and " " in t and t in normalized_desc:
             return True
 
     return False
 
 
 # ── Legacy compatibility ──────────────────────────────────────────────
+
 
 class Matcher:
     @staticmethod
@@ -242,6 +256,8 @@ class Matcher:
             term = term.strip().lower()
             if not term:
                 continue
-            if re.search(r"\b" + re.escape(strip_diacritics(term)) + r"\b", title_normalized):
+            if re.search(
+                r"\b" + re.escape(strip_diacritics(term)) + r"\b", title_normalized
+            ):
                 return True
         return False

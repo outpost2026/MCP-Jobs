@@ -69,6 +69,35 @@ class BaseScraper(ABC):
     def _track_field_failure(self, field: str) -> None:
         self.stats.field_failures[field] = self.stats.field_failures.get(field, 0) + 1
 
+    def fetch_detail(self, ad: Ad) -> Optional[str]:
+        """Fetch full ad detail page and extract body text (description).
+
+        Implemented by providers whose detail pages are server-rendered
+        (plain HTTP GET, no headless). Returns extracted text or None.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement fetch_detail"
+        )
+
+    def _fetch_detail_text(self, url: str, selectors: list[str]) -> Optional[str]:
+        """Shared helper: GET detail URL, first matching selector's text."""
+        text = self._fetch_page(url)
+        if not text:
+            return None
+        try:
+            from bs4 import BeautifulSoup
+
+            soup = BeautifulSoup(text, "html.parser")
+            for sel in selectors:
+                el = soup.select_one(sel)
+                if el:
+                    body = el.get_text(strip=True)
+                    if body:
+                        return body
+        except Exception:
+            return None
+        return None
+
     @property
     @abstractmethod
     def name(self) -> str: ...
