@@ -1,26 +1,54 @@
 {
   "repo": "MCP-Jobs",
   "created": "2026-07-13T22:00:00+00:00",
-  "phase": "05-l2-resources",
+  "phase": "06-refactor-kalibrace",
   "status": "active",
+  "branch": "refactor",
   "remote": "https://github.com/outpost2026/MCP-Jobs.git",
   "last_session": {
-    "value": "Iteration 5 completed 2026-07-15: L2 Resources (mcp-jobs://ads/{query_id}, /list, /report) + PowerShell/cp1250 encoding 6-layer mitigation stack. root cause: CommandLineToArgvW argument splitting + cp1250 console. fix: .bat PYTHONIOENCODING, cli.py ensure_utf8_stdout(), .ai_guardrails.json shell_rules, opencode.jsonc -X utf8, _init.ps1 + $PROFILE autoload, docs/powershell_encoding.md. Synthetic guardrail tests: 12/12 PASS. 103/103 unit tests. v0.4.0 tagged. feature/v2 branch active.",
-    "updated": "2026-07-15T07:30:00+00:00"
+    "value": "Iteration 6 (2026-07-31): refactor branch pushnut. Kalibrace konfiguraci do 2 profilu: (A) AI-native primary matrix (config.yaml: cnc_cam_automation, reverse_engineering, prumyslova_automatizace, AI-native), (B) legacy_manual fallback (config_legacy_manual.yaml: 6 manual trades + cleaned cnc_jobs). Korekce balik 1-5 legacy profilu (semanticka analyza): nemecko spam 5->0, spravce_budov chytil facility scope, elektrikar nasel pracecz trh, strechy=[praha], elektrotechnik, cnc split. jobs.cz Praha 5->20 stranek, bazos jen pro cnc/prumysl. lazy detail fetch (Reseni B) pro full-text description. Profilove odlisovani vystupu: etl_{PROFILE}_{ts}.json/.md + latest_{PROFILE}. Architektonicke srovnani MCP-Jobs vs scrapers: KB report ec1cc43. Klicove metriky: MCP-AI 15 uniq/99.9s, MCP-LEG 48 uniq/116.6s, scrapers-fresh 21 uniq; pruniky 7-15%; doporuceno ponechat obe architektury. HEAD f1b54f4.",
+    "updated": "2026-07-31T22:30:00+00:00"
+  },
+  "profiles": {
+    "ai_native": {
+      "config": "config.yaml",
+      "scope": "cnc_cam_automation, reverse_engineering, prumyslova_automatizace, devops (clean), AI-native matrix",
+      "note": "Primarni matrix (Faze 2 kalibrace)"
+    },
+    "legacy_manual": {
+      "config": "config_legacy_manual.yaml",
+      "scope": "6 manual trades (elektrikar, strojnik, nemecko-blok, etc.) + cleaned cnc_jobs",
+      "note": "Fallback + srovnani se scrapers; korekce balik 1-5 aplikovan"
+    }
   },
   "pending": [
-    "Security threat model (chybějící layer všech auditů)",
+    "Security threat model (chybejici layer vsech auditu)",
     "Hosted demo (Railway/Render)",
     "LinkedIn Analyzer integrace",
-    "CI/CD (GitHub Actions)"
+    "CI/CD (GitHub Actions)",
+    "Sladit nemecko-blocklist / exclude listy mezi MCP-Jobs config a scrapers topics.csv (scrapers: vsech 93 radku blokovano)"
   ],
   "completed": [
+    "Phase 06: data integrity + monitoring + persistence (43d17bd)",
+    "Correlation cache save z run_etl.py + run_etl_metrics.py (579883e)",
+    "Lazy detail fetch (Reseni B): full-text description z detail stranky (8e2eb17)",
+    "Profilove odlisovani vystupu: etl_{PROFILE}_{ts}.json/.md + latest_{PROFILE} (4b3a513)",
+    "Korekce balik legacy profilu 1-5 (semanticka analyza 2026-07-31, f1b54f4)",
+    "Config kalibrace: jobs.cz Praha 5->20 stranek, bazos jen pro cnc/prumysl (37eec93)",
+    "AI-native primary matrix (2ace484) + prumyslova_automatizace + clean devops (d72c6a2)",
+    "Pokryti prace.cz + EN role terminy + lokalita Praha/remote (632ff47)",
+    "Fallback config_legacy_manual.yaml: 6 manual trades + cleaned cnc_jobs (f2ea33e)",
     "L2 Resources (mcp-jobs://ads/{query_id}, /list, /report)",
-    "PowerShell/cp1250 encoding 6-layer mitigation stack"
+    "PowerShell/cp1250 encoding 6-layer mitigation stack",
+    "Architektonicke srovnani MCP-Jobs vs scrapers -> B2B-Knowledge-Base/02_ANALYZY/05_mcp_jobs/srovnani_architektur_mcp_vs_scrapers_2026-07-31.md (ec1cc43)"
   ],
+  "key_findings": {
+    "comparison_2026-07-31": "MCP-AI 15 uniq/99.9s, MCP-LEG 48 uniq/116.6s, scrapers-fresh 21 uniq. Pruniky: MCP-AI n scrapers-fresh = 1/15 (7%), MCP-LEG n scrapers-fresh = 7/48 (15%). Scrapers MAJI vetsi prosivani (168 uniq cumulative), ale jen 21 fresh. Doporuceni: ponechat obe architektury."
+  },
   "dependencies": {
     "linkedin-mcp-custom": "EROI scoring pattern + cross-MCP integrace",
-    "B2B-Knowledge-Base": "pitevni knihy, KB write target"
+    "B2B-Knowledge-Base": "pitevni knihy, KB write target, analyzy",
+    "scrapers": "paralelni legacy pipeline (4 scrapery + Master_Prace_Index); topics.csv = zdroj nemecko-blocklistu"
   },
-  "next_phase": "Phase 06 — Security hardening + hosted demo"
+  "next_phase": "Phase 07 — Security hardening + hosted demo"
 }
