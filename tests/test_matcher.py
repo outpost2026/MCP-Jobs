@@ -1,12 +1,22 @@
 import pytest
-from mcp_jobs.matcher import Matcher, matches_ad, evaluate_boolean, parse_boolean, validate_boolean
+from mcp_jobs.matcher import (
+    Matcher,
+    matches_ad,
+    evaluate_boolean,
+    parse_boolean,
+    validate_boolean,
+)
 from mcp_jobs.models import Ad
 
 
 # ── Old Matcher backward compat ────────────────────────────────────────
 
+
 def test_and_logic():
-    assert Matcher.match_keywords("Python Developer", "python+developer") == (True, "python+developer")
+    assert Matcher.match_keywords("Python Developer", "python+developer") == (
+        True,
+        "python+developer",
+    )
 
 
 def test_word_boundary_title():
@@ -29,7 +39,10 @@ def test_empty_query():
 
 
 def test_multiple_and_terms():
-    assert Matcher.match_keywords("Python Django Developer", "python+django") == (True, "python+django")
+    assert Matcher.match_keywords("Python Django Developer", "python+django") == (
+        True,
+        "python+django",
+    )
     assert Matcher.match_keywords("Python Developer", "python+django") == (False, "")
 
 
@@ -40,6 +53,7 @@ def test_exclude_pipe():
 
 # ── New boolean matcher ────────────────────────────────────────────────
 
+
 def test_boolean_simple_word():
     assert evaluate_boolean("Python Developer", "python") is True
     assert evaluate_boolean("Java Developer", "python") is False
@@ -48,6 +62,17 @@ def test_boolean_simple_word():
 def test_boolean_word_boundary():
     assert evaluate_boolean("CNC fréza", "cnc") is True
     assert evaluate_boolean("elektrocnc", "cnc") is False
+
+
+def test_boolean_word_boundary_non_word_terms():
+    """Terms ending/starting with non-word chars (c++, c#, .net) must match."""
+    assert evaluate_boolean("C++ Developer", "c++") is True
+    assert evaluate_boolean("C# Developer", "c#") is True
+    assert evaluate_boolean(".NET Developer", ".net") is True
+    assert evaluate_boolean("Java Developer", "c++") is False
+    assert evaluate_boolean("C++ Builder", "c++ AND builder") is True
+    assert evaluate_boolean("C++ builder", "c++ AND NOT builder") is False
+    assert evaluate_boolean("cc++", "c++") is False
 
 
 def test_boolean_and():
@@ -84,7 +109,9 @@ def test_boolean_empty():
 
 
 def test_boolean_matches_ad():
-    ad1 = Ad(title="Python Developer", url="http://x", portal="jobs", company="Acme Corp")
+    ad1 = Ad(
+        title="Python Developer", url="http://x", portal="jobs", company="Acme Corp"
+    )
     ad2 = Ad(title="Java Developer", url="http://y", portal="jobs", company="Acme Corp")
 
     assert matches_ad(ad1, "python AND developer") is True
@@ -92,8 +119,12 @@ def test_boolean_matches_ad():
 
 
 def test_boolean_matches_ad_description():
-    ad = Ad(title="Název pozice", url="http://x", portal="jobs",
-            description="Hledáme autoelektrikáře do týmu")
+    ad = Ad(
+        title="Název pozice",
+        url="http://x",
+        portal="jobs",
+        description="Hledáme autoelektrikáře do týmu",
+    )
     assert matches_ad(ad, "autoelektrikáře") is True
     assert matches_ad(ad, "autoelektrikáře AND python") is False
 
@@ -121,11 +152,21 @@ def test_complex_nested():
 
 # ── Diacritics normalization ────────────────────────────────────────
 
+
 def test_strip_diacritics():
     from mcp_jobs.matcher import strip_diacritics
+
     assert strip_diacritics("programátor") == "programator"
-    assert strip_diacritics("\u010d\u010f\u011b\u0148\u0159\u0161\u0165\u017e") == "cdenrstz"
-    assert strip_diacritics("\u013e\u0161\u010d\u0165\u017e\u00fd\u00e1\u00ed\u00e9\u00fa\u00f4\u00e4\u0148") == "lsctzyaieuoan"
+    assert (
+        strip_diacritics("\u010d\u010f\u011b\u0148\u0159\u0161\u0165\u017e")
+        == "cdenrstz"
+    )
+    assert (
+        strip_diacritics(
+            "\u013e\u0161\u010d\u0165\u017e\u00fd\u00e1\u00ed\u00e9\u00fa\u00f4\u00e4\u0148"
+        )
+        == "lsctzyaieuoan"
+    )
     assert strip_diacritics("ASCII") == "ASCII"
     assert strip_diacritics("") == ""
 
@@ -163,6 +204,7 @@ def test_boolean_diacritics_not():
 
 def test_boolean_diacritics_matches_ad():
     from mcp_jobs.matcher import matches_ad
+
     ad = Ad(title="Programátor Python", url="http://x", portal="jobs")
     assert matches_ad(ad, "programator AND python") is True
     assert matches_ad(ad, "programator AND java") is False
@@ -175,6 +217,7 @@ def test_has_exclude_diacritics():
 
 
 # ── Parser strictness (Iteration 3) ───────────────────────────────────
+
 
 def test_trailing_rparen_error():
     assert evaluate_boolean("Python Developer", "python)") is False

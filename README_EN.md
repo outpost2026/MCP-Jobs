@@ -10,11 +10,11 @@
 
 # MCP-Jobs
 
-MCP server for scraping Czech job portals with boolean matching, exclude lists, and location/salary filters. Successor to legacy scrapers — **4.5× faster**, config-driven, 97 unit tests, production hardening.
+MCP server for scraping Czech job portals with boolean matching, exclude lists, and location/salary filters. Successor to legacy scrapers — **4.5× faster**, config-driven, 125 unit tests, production hardening.
 
 ## Features
 
-- **8 configurable queries** — python_jobs, cnc_jobs, elektrikar, spravce, udrzbar, zahradnik, truhlar, strechy
+- **8 configurable queries** — python_ai_engineer, ai_llm_engineer, mcp_agentic, data_engineering, devops_ci_cd, prumyslova_automatizace, cnc_cam_automation, reverse_engineering
 - **Boolean matching** — full AND/OR/NOT/parens AST parser + diacritics + LRU cache (8000→8 parses)
 - **Exclude lists** — word-boundary on title, substring on description (Czech inflection support)
 - **NFKD diacritics** — automatic normalization (programátor = programator)
@@ -24,7 +24,7 @@ MCP server for scraping Czech job portals with boolean matching, exclude lists, 
 - **Pages guard** — max 50 pages per call (resource abuse prevention)
 - **Auto-validation** — boolean expressions validated at config load time (fail-fast)
 - **MCP-native** — stdio transport, FastMCP SDK, ready for AI agent integration
-- **97 unit tests** — pytest, full coverage of matcher, pipeline, providers, config
+- **125 unit tests** — pytest, full coverage of matcher, pipeline, providers, config
 - **Structured logging** — per-card skip count, 0-ads alert, no silent failures
 - **MCP L3 Prompts** — `search_expert` prompt for natural language to boolean query conversion
 
@@ -64,7 +64,7 @@ pip install -e ".[dev]"
 copy config.yaml.example config.yaml
 # Edit postal code, radius, queries, excludes as needed
 
-# Tests (97 tests)
+# Tests (125 tests)
 pytest tests/ -v
 
 # ETL pipeline
@@ -91,9 +91,9 @@ portals:
         params: {hlokalita: "18000", humkreis: "25"}
 
 queries:
-  python_jobs:
-    boolean: "(python AND (developer OR vyvojar OR programator)) AND NOT senior"
-    exclude: ["agentura", "nabizim", "hledam praci", ...]
+  python_ai_engineer:
+    boolean: "(python AND (ai OR ml OR data OR vyvojar OR programator OR inzenyr OR engineer OR developer)) NOT (lektor OR kurz OR skoleni)"
+    exclude: ["agentura", "nabizim", "hledam praci"]
     portals: ["jobs", "pracecz"]
 ```
 
@@ -156,21 +156,23 @@ Each ETL run generates JSON with per-provider timing:
 | Per-provider bazos | ~80 s | **~24 s** | **3.3× faster** |
 | Per-provider jobs | ~40 s | **~7.5 s** | **5.3× faster** |
 | Per-provider pracecz | ~60 s | **~11 s** | **5.4× faster** |
-| Unit tests | 0 | **97** | — |
+| Unit tests | 0 | **125** | — |
 | Rate limiting | `sleep(1.0-2.5)` random | **1.0s precise delay** | ToS compliant |
 
-### Key Improvements v0.3.0 → v0.3.1 (Iteration 3→4)
+### Key Improvements v0.3.1 → v0.4.0 (Iteration 3→8)
 
-| Feature | v0.3.0 | v0.3.1 (Iter4) |
-|---------|--------|----------------|
+| Feature | v0.3.1 | v0.4.0 |
+|---------|--------|--------|
 | AST re-parses/query | 8000 (per ad) | **8** (LRU cached) |
 | Pages guard | unlimited | **max 50** |
 | Request delay | 0s | **1.0s** (rate limiting) |
 | Boolean validation | runtime only | **config-load time** |
 | MCP error reporting | inconsistent | **unified `[{"error":...}]`** |
 | Config error messages | raw TypeError | **user-friendly** |
-| Test count | 92 | **97** |
+| Test count | 97 | **125** |
 | Inline import in loop | yes | **top-level** |
+| Silent errors | yes | **eliminated via logger** (http/storage/base) |
+| Persistence | in-memory | **query_store.json + correlation_cache.json** |
 
 ### Architecture & Quality
 
@@ -189,14 +191,14 @@ Each ETL run generates JSON with per-provider timing:
 | Output | CSV+MD per portal | Unified JSON |
 | Protocol | None | MCP (Model Context Protocol) |
 | Prompts | N/A | `search_expert` (MCP L3) |
-| Tests | 0 | **97 pytest** |
+| Tests | 0 | **125 pytest** |
 
 ## MCP Maturity
 
 | Level | Status |
 |-------|--------|
 | L1 — Tools | ✅ 5 MCP tools |
-| L2 — Resources | ⬜ Planned (mcp-jobs://ads/{query_id}) |
+| L2 — Resources | ✅ `mcp-jobs://ads/list`, `mcp-jobs://ads/{query_id}`, `mcp-jobs://ads/{query_id}/report` |
 | L3 — Prompts | ✅ `search_expert` prompt |
 | L4 — Streaming | ⬜ Planned (progress reporting) |
 
@@ -212,6 +214,7 @@ Each ETL run generates JSON with per-provider timing:
 ## Known Limitations
 
 - **Rate limiting**: 1.0s delay = 46s pipeline (vs 23s without). Required for ToS compliance.
+- **Detail fetch (v0.4.0)**: lazy fetch of missing descriptions extends pipeline runtime to tens of minutes on large pools — cap planned (Phase 09 product package)
 - **Double scrape**: `SearchPipeline.run()` always rescrapes internally — no existing pool injection
 - **Description matching**: word boundaries DISABLED on description (intentional — Czech inflection)
 - **Location filter**: substring matching (no geocoding), sufficient for "Praha"

@@ -10,11 +10,11 @@
 
 # MCP-Jobs
 
-MCP server pro scraping českých pracovních portálů s boolean matchingem, exclude listy a location/salary filtry. Nástupce legacy scrapers — **4.5× rychlejší**, config-driven, 97 unit testů, hardening pro produkční nasazení.
+MCP server pro scraping českých pracovních portálů s boolean matchingem, exclude listy a location/salary filtry. Nástupce legacy scrapers — **4.5× rychlejší**, config-driven, 125 unit testů, hardening pro produkční nasazení.
 
 ## Features
 
-- **8 konfigurovatelných query** — python_jobs, cnc_jobs, elektrikar, spravce, udrzbar, zahradnik, truhlar, strechy
+- **8 konfigurovatelných query** — python_ai_engineer, ai_llm_engineer, mcp_agentic, data_engineering, devops_ci_cd, prumyslova_automatizace, cnc_cam_automation, reverse_engineering
 - **Boolean matching** — plná AND/OR/NOT/parens logika s AST parserem + diakritika + LRU cache (8000→8 parsování)
 - **Exclude listy** — word-boundary na title, substring na description (české skloňování)
 - **NFKD diakritika** — automatická normalizace (programátor = programator)
@@ -24,7 +24,7 @@ MCP server pro scraping českých pracovních portálů s boolean matchingem, ex
 - **Pages guard** — max 50 stránek na volání (resource abuse prevence)
 - **Auto-validace boolean výrazů** — fail-fast při malformed configu
 - **MCP-native** — stdio transport, FastMCP SDK, ready pro AI agent integraci
-- **97 unit testů** — pytest, plné pokrytí matcheru, pipeline, providerů, configu
+- **125 unit testů** — pytest, plné pokrytí matcheru, pipeline, providerů, configu
 - **Structured logging** — per-card skip count, 0-ads alert, žádné silent failures
 - **MCP L3 Prompts** — `search_expert` prompt pro převod přirozeného jazyka na boolean query
 
@@ -64,7 +64,7 @@ pip install -e ".[dev]"
 copy config.yaml.example config.yaml
 # Uprav PSČ, radius, query, exclude dle potřeby
 
-# Testy (97 testů)
+# Testy (125 testů)
 pytest tests/ -v
 
 # ETL pipeline
@@ -91,9 +91,9 @@ portals:
         params: {hlokalita: "18000", humkreis: "25"}
 
 queries:
-  python_jobs:
-    boolean: "(python AND (developer OR vyvojar OR programator)) AND NOT senior"
-    exclude: ["agentura", "nabizim", "hledam praci", ...]
+  python_ai_engineer:
+    boolean: "(python AND (ai OR ml OR data OR vyvojar OR programator OR inzenyr OR engineer OR developer)) NOT (lektor OR kurz OR skoleni)"
+    exclude: ["agentura", "nabizim", "hledam praci"]
     portals: ["jobs", "pracecz"]
 ```
 
@@ -158,21 +158,23 @@ Každý ETL běh generuje JSON s per-provider timingem:
 | Per-provider bazos | ~80 s | **~24 s** | **3.3× faster** |
 | Per-provider jobs | ~40 s | **~7.5 s** | **5.3× faster** |
 | Per-provider pracecz | ~60 s | **~11 s** | **5.4× faster** |
-| Unit tests | 0 | **97** | — |
+| Unit tests | 0 | **125** | — |
 | Rate limiting | `sleep(1.0-2.5)` | **1.0s přesný delay** | ToS compliant |
 
-### Hlavní vylepšení oproti v0.3.0 (Iteration 3→4)
+### Hlavní vylepšení oproti v0.3.1 (Iteration 3→8)
 
-| Feature | v0.3.0 | v0.3.1 (Iter4) |
-|---------|--------|----------------|
+| Feature | v0.3.1 | v0.4.0 |
+|---------|--------|--------|
 | AST re-parses/query | 8000 (per ad) | **8** (LRU cached) |
 | Pages guard | unlimited | **max 50** |
 | Request delay | 0s | **1.0s** (rate limiting) |
 | Boolean validation | runtime only | **config-load time** |
 | MCP error reporting | inconsistent | **unified `[{"error":...}]`** |
 | Config error messages | raw TypeError | **user-friendly** |
-| Test count | 92 | **97** |
+| Test count | 97 | **125** |
 | Inline import v loopu | ano | **top-level** |
+| Silent errors | ano | **eliminovány loggerem** (http/storage/base) |
+| Persistence | in-memory | **query_store.json + correlation_cache.json** |
 
 ### Architektura a kvalita
 
@@ -191,7 +193,7 @@ Každý ETL běh generuje JSON s per-provider timingem:
 | Output | CSV+MD per portal | Unified JSON |
 | Protokol | Žádný | MCP (Model Context Protocol) |
 | Prompty | N/A | `search_expert` (MCP L3) |
-| Testy | 0 | **97 pytestů** |
+| Testy | 0 | **125 pytestů** |
 
 ## MCP Maturity
 
@@ -214,6 +216,7 @@ Každý ETL běh generuje JSON s per-provider timingem:
 ## Známé limity
 
 - **Rate limiting**: 1.0s delay = 46s pipeline (oproti 23s bez delay). Nutný pro ToS compliance.
+- **Detail fetch (v0.4.0)**: lazy fetch chybějících descriptionů prodlužuje pipeline na desítky minut u velkých poolů — cap je plánován (Phase 09 produktový balík)
 - **Double scrape**: `SearchPipeline.run()` vždy rescrapuje interně, nelze injectnout existující pool
 - **Description matching**: word boundaries VYPNUTY na description (záměrně — české skloňování)
 - **Location filter**: substring matching (ne geokód), pro "Praha" dostačující

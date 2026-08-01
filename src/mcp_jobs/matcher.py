@@ -55,8 +55,13 @@ class _Word(_Node):
     def evaluate(self, text: str) -> bool:
         normalized_word = strip_diacritics(self.word.lower())
         normalized_text = strip_diacritics(text.lower())
+        # (?<!\w)/(?!\w) instead of \b so terms ending in non-word chars
+        # (c++, c#, .net) still match — \b requires a word char after the last
+        # non-word char, so "c++" never matched anything.
         return bool(
-            re.search(r"\b" + re.escape(normalized_word) + r"\b", normalized_text)
+            re.search(
+                r"(?<!\w)" + re.escape(normalized_word) + r"(?!\w)", normalized_text
+            )
         )
 
 

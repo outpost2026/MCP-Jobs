@@ -14,7 +14,7 @@ from .matcher import matches_ad
 from .models import Ad
 from .pipeline import SearchPipeline
 from .providers import ACTIVE_PORTALS
-from .storage import Storage
+from .storage import CorrelationRecord, Storage
 from .utils import ensure_utf8_stdout
 
 # P18: Console encoding safety — Windows cp1250 before any output
@@ -375,7 +375,9 @@ def search_expert(
     if exclude_terms.strip():
         exclude_list = [t.strip() for t in exclude_terms.split(",") if t.strip()]
         if exclude_list:
-            not_part = " AND ".join(f"NOT {e}" for e in exclude_list)
+            not_part = " AND ".join(
+                f"NOT ({' AND '.join(e.split())})" for e in exclude_list
+            )
             boolean_query = (
                 f"{boolean_query} AND {not_part}" if boolean_query else not_part
             )

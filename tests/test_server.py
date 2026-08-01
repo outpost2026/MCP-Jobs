@@ -16,6 +16,7 @@ from mcp_jobs.server import (
 
 def test_health_check():
     from mcp_jobs.server import health_check
+
     result = health_check()
     assert result["status"] == "ok"
     assert result["server"] == "mcp-jobs"
@@ -75,6 +76,7 @@ def test_list_portals():
 
 def test_search_from_config_not_found():
     from mcp_jobs.server import search_from_config
+
     result = search_from_config("/nonexistent/path/config.yaml")
     assert isinstance(result, list)
     assert len(result) == 1
@@ -83,6 +85,7 @@ def test_search_from_config_not_found():
 
 def test_search_jobs_v2_unknown_portal():
     from mcp_jobs.server import search_jobs_v2
+
     result = search_jobs_v2("python", portal="nonexistent")
     assert isinstance(result, list)
     assert len(result) == 1
@@ -92,6 +95,7 @@ def test_search_jobs_v2_unknown_portal():
 
 # ── Prompts ──────────────────────────────────────────────────────────
 
+
 def test_search_expert_prompt_registered():
     prompts = mcp._prompt_manager._prompts
     assert "search_expert" in prompts
@@ -99,6 +103,7 @@ def test_search_expert_prompt_registered():
 
 def test_search_expert_basic():
     from mcp_jobs.server import search_expert
+
     result = search_expert("python developer", "Praha", 40000)
     assert len(result) == 1
     assert result[0]["role"] == "user"
@@ -110,14 +115,32 @@ def test_search_expert_basic():
 
 def test_search_expert_with_exclude():
     from mcp_jobs.server import search_expert
+
     result = search_expert("python", exclude_terms="senior,lead")
     content = result[0]["content"]
-    assert "NOT senior" in content
-    assert "NOT lead" in content
+    assert "NOT (senior)" in content
+    assert "NOT (lead)" in content
+
+
+def test_search_expert_multi_word_exclude_valid():
+    """Multi-word exclude terms must be parenthesized AND-joined, not 'NOT a b' (parse error)."""
+    from mcp_jobs.server import search_expert
+    from mcp_jobs.matcher import validate_boolean, evaluate_boolean
+
+    result = search_expert("python developer", exclude_terms="hledam praci,senior")
+    content = result[0]["content"]
+    assert "NOT (hledam AND praci)" in content
+    assert "NOT (senior)" in content
+    query = "python AND developer AND NOT (hledam AND praci) AND NOT (senior)"
+    assert validate_boolean(query) is True
+    assert evaluate_boolean("Python developer", query) is True
+    assert evaluate_boolean("Hledam praci Python developer", query) is False
+    assert evaluate_boolean("Senior Python developer", query) is False
 
 
 def test_search_expert_no_location():
     from mcp_jobs.server import search_expert
+
     result = search_expert("python developer")
     content = result[0]["content"]
     assert "(python) AND (developer)" in content
@@ -129,7 +152,9 @@ def test_search_expert_no_location():
 
 def test_store_and_list_resources():
     _query_store.clear()
-    qid = _store_results([{"query": "test", "total_found": 1, "results": [{"title": "Test Ad"}]}])
+    qid = _store_results(
+        [{"query": "test", "total_found": 1, "results": [{"title": "Test Ad"}]}]
+    )
     assert len(qid) == 8
 
     listing = json.loads(list_ads_resources())
@@ -139,7 +164,13 @@ def test_store_and_list_resources():
 
 def test_get_ads_resource():
     _query_store.clear()
-    data = [{"query": "test", "total_found": 1, "results": [{"title": "Python Dev", "url": "https://example.com/job"}]}]
+    data = [
+        {
+            "query": "test",
+            "total_found": 1,
+            "results": [{"title": "Python Dev", "url": "https://example.com/job"}],
+        }
+    ]
     qid = _store_results(data)
 
     raw = get_ads_resource(qid)
@@ -159,7 +190,19 @@ def test_get_ads_resource_unknown():
 
 def test_get_ads_report_resource():
     _query_store.clear()
-    data = [{"query": "test", "total_found": 1, "results": [{"title": "Python Dev", "url": "https://example.com/job", "portal": "jobs"}]}]
+    data = [
+        {
+            "query": "test",
+            "total_found": 1,
+            "results": [
+                {
+                    "title": "Python Dev",
+                    "url": "https://example.com/job",
+                    "portal": "jobs",
+                }
+            ],
+        }
+    ]
     qid = _store_results(data)
 
     report = get_ads_report_resource(qid)
@@ -178,6 +221,7 @@ def test_store_results_empty_list():
 def test_resource_uris_in_search_output():
     """search_jobs_v2 with unknown portal should NOT have query_id."""
     from mcp_jobs.server import search_jobs_v2
+
     result = search_jobs_v2("python", portal="nonexistent")
     assert "query_id" not in result[0]
     assert "resource_uri" not in result[0]
