@@ -1,13 +1,13 @@
 {
   "repo": "MCP-Jobs",
   "created": "2026-07-13T22:00:00+00:00",
-  "phase": "08-cross-audit-fix",
+  "phase": "09-hotfix",
   "status": "active",
   "branch": "main",
   "remote": "https://github.com/outpost2026/MCP-Jobs.git",
   "last_session": {
-    "value": "Iteration 8 (2026-07-31): Cross-audit fix balik (Phase 08). 10 fixu aplikovano a verifikovano: C1 dedup fuzzy_key + (location or '') + warning, C2 logger do http/storage/base (silent errors eliminovany), M1 malformed boolean fail-fast (raise ValueError, configy validni), M2 detail_cache retry, M3 salary fallback na price, M4 container guard if not cards (3 providers), M5 synthetic_guardrails -> test_synthetic_guardrails.py, M6 pyproject dev extra, M7 dead import Matcher + search_expert OR, m3 datetime cleanup. Test suite 103 -> 123 PASS (+20). Fresh ETL run verifikovan: 26 matched/15 uniq identicke s baseline, 0 ERROR, 58 WARNING (33 fuzzy dedup reposty + 24 exact dup + 1x 404 bazos stop = vse ocekavane). Grok/xAI audit analyzovan: konvergentni, base.py doplnek platny, M4 'opraveno' claim VYVRACEN (guard nechranil rozbity selektor). KB artefakt: FIX_BALIK_cross_audit_2026-07-31.md. HEAD a99713c + working tree, push pending.",
-    "updated": "2026-07-31T23:50:00+00:00"
+    "value": "Iteration 9 (2026-08-01): Phase 09 hotfix (de novo audit F1-F4 + F7/F8/F9/F18). F1 import CorrelationRecord do server.py (NameError fix, overeno zapisem correlation_cache), F2 pyyaml>=6.0 do runtime deps (pyproject + requirements), F3 matcher (?<!\\w)/(?!\\w) misto \\b — C++/C#/.net nyni matchnou (+7 assertu), F4 search_expert multi-word exclude -> NOT (hledam AND praci) (dokud bylo 'NOT a b' = parse error; +4 asserty), F7 EN L2 Resources Planned->implemented, F8 97->125 testu + verze tabulek v0.3.1->v0.4.0, F9 config query names (python_ai_engineer aj. dle config.yaml), F18 l2_resources.md perzistence. Test suite 125/125 PASS. Commit 45f70ad, pushnuto. NEXT: engineering-proces balik (uv+ruff+mypy+GH Actions+pre-commit+coverage 66% baseline+Dependabot), pak produktovy (SQLite FTS5, Dockerfile, SSRF allowlist, cap detail fetch, __main__.py+--smoke).",
+    "updated": "2026-08-01T10:35:00+00:00"
   },
   "profiles": {
     "ai_native": {
@@ -22,20 +22,16 @@
     }
   },
   "pending": [
-    "README sync — stale claimy (97 vs 123 testu), 'zadne silent failures' rozpor s C2 (fixy aplikovany, README neaktualizovan)",
-    "P2: SSRF URL validace (m6 Grok, nizka priorita — lokalni nastroj)",
+    "Engineering-proces (Phase 09): uv+uv.lock, ruff+mypy strict, GH Actions ci+release, pre-commit, coverage baseline 66%, Dependabot",
+    "Produktovy (Phase 09): SQLite/FTS5 persistent storage, Dockerfile non-root, SSRF URL allowlist + SECURITY.md threat model, cap lazy detail fetch (F5), __main__.py + --smoke",
+    "Post-public: Streamable HTTP + OAuth, PyPI trusted publishing, observability, hosted demo (Railway/Render)",
     "P2: bazos fetch_detail NotImplementedError — dokumentace/implementace (m7 Grok)",
     "P2: _default_category jobs hardcoded praha (m1, search_jobs_v2 vzdy Praha)",
-    "P2: pyproject coverage — [project.optional-dependencies] dev doplnit coverage+pytest-cov, zacit merit (baseline 66%)",
-    "CI/CD (GitHub Actions: ruff, mypy, pytest, coverage report)",
-    "SQLite/FTS5 persistent storage",
-    "Streamable-http transport",
-    "Security threat model (chybejici layer vsech auditu)",
-    "Hosted demo (Railway/Render)",
     "LinkedIn Analyzer integrace",
     "Sladit nemecko-blocklist / exclude listy mezi MCP-Jobs config a scrapers topics.csv (scrapers: vsech 93 radku blokovano)"
   ],
   "completed": [
+    "Phase 09 hotfix (2026-08-01): F1-F4 + F7/F8/F9/F18, 125 testu PASS, commit 45f70ad pushnuto. KB artefakt: HOTFIX_09_2026-08-01.md",
     "Phase 08: cross-audit fix balik — 10 fixu (C1, C2, M1-M7, m3) aplikovano + 123 testu PASS + fresh ETL determinism check (26 matched/15 uniq bez regrese)",
     "FIX_BALIK_cross_audit_2026-07-31.md v B2B-Knowledge-Base/02_ANALYZY/05_mcp_jobs/",
     "Grok/xAI audit analyzovan (2026-07-31): konvergentni s v1; M4 'castecne opraveno' claim vyvracen; base.py silent except doplnek",
