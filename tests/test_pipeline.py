@@ -217,7 +217,7 @@ def test_parallel_deterministic_same_as_sequential():
     class SlowProvider:
         name = "slow"
 
-        def __init__(self):
+        def __init__(self, http_client=None):
             self.stats = type(
                 "FakeStats",
                 (),
@@ -301,7 +301,7 @@ def test_detail_cache_retries_failed_fetch():
     class FlakyProvider:
         name = "flaky"
 
-        def __init__(self):
+        def __init__(self, http_client=None):
             self.stats = type(
                 "FakeStats",
                 (),

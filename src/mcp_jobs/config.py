@@ -47,13 +47,17 @@ class QueryConfig:
 
 @dataclass
 class PipelineSettings:
-    """Mira soubeznosti pipeline pri scrapingu portalu.
+    """Mira soubeznosti a throttle politika pipeline pri scrapingu portalu.
 
     max_workers: 0 = auto (pocet ozbrojenych portalu), 1 = sekvencne,
                  2+ = vice portalu soucasne (kazdy v samostatnem vlakne).
+    request_delay: minimalni odstup mezi 2 requesty na PORTAL (s).
+                  Zachovava scrape politiku (slusnost vuci server), jen
+                  zkracuje cekaci okno. 429/5xx stale kryptuje urllib3 Retry.
     """
 
     max_workers: int = 0
+    request_delay: float = 0.5
 
 
 @dataclass

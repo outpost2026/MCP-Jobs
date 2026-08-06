@@ -20,6 +20,7 @@ profile: "LEGACY-MANUAL"
 
 pipeline:
   max_workers: 3
+  request_delay: 0.5
 
 portals:
   jobs:

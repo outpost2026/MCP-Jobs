@@ -132,7 +132,12 @@ class SearchPipeline:
         Kazdy portal ma vlastni provider instanci + vlastni HttpClient
         (Session + throttle), takze mezi vlakny neni sdileny mutable stav.
         """
-        provider = REGISTRY.get(portal_name)()
+        from .http import HttpClient
+
+        provider_cls = REGISTRY.get(portal_name)
+        provider = provider_cls(
+            http_client=HttpClient(request_delay=self.config.pipeline.request_delay)
+        )
         pool: list[Ad] = []
         for cat in pconf.categories:
             try:
