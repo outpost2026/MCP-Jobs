@@ -46,11 +46,23 @@ class QueryConfig:
 
 
 @dataclass
+class PipelineSettings:
+    """Mira soubeznosti pipeline pri scrapingu portalu.
+
+    max_workers: 0 = auto (pocet ozbrojenych portalu), 1 = sekvencne,
+                 2+ = vice portalu soucasne (kazdy v samostatnem vlakne).
+    """
+
+    max_workers: int = 0
+
+
+@dataclass
 class UserConfig:
     user: str = "default"
     profile: str = "default"
     portals: dict[str, PortalConfig] = field(default_factory=dict)
     queries: dict[str, QueryConfig] = field(default_factory=dict)
+    pipeline: PipelineSettings = field(default_factory=PipelineSettings)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> UserConfig:
@@ -127,9 +139,16 @@ class UserConfig:
                 )
             queries[name] = qc
 
+        raw_pipeline = raw.get("pipeline", {}) or {}
+        try:
+            pipeline = PipelineSettings(**raw_pipeline)
+        except TypeError as e:
+            raise TypeError(f"Invalid pipeline config: {e}") from e
+
         return cls(
             user=raw.get("user", "default"),
             profile=raw.get("profile", "default"),
             portals=portals,
             queries=queries,
+            pipeline=pipeline,
         )

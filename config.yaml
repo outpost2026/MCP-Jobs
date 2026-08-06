@@ -9,6 +9,9 @@
 user: "default"
 profile: "AI-NATIVE"
 
+pipeline:
+  max_workers: 3
+
 portals:
   jobs:
     enabled: true

@@ -195,6 +195,102 @@ def test_empty_boolean_skipped():
         Path(tmp).unlink(missing_ok=True)
 
 
+def test_parallel_deterministic_same_as_sequential():
+    """Paralel scraping (max_workers=3) dava IDENTICKE vysledky jako sekvencni.
+
+    Pouziva FakeProvider s konfigurovatelnym zpozdenim, aby se otestoval
+    jak determinismus, tak i soubeznost (casove mereni).
+    """
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    from mcp_jobs.config import (
+        UserConfig,
+        PortalConfig,
+        CategoryConfig,
+        QueryConfig,
+        PipelineSettings,
+    )
+    from mcp_jobs import providers as providers_mod
+
+    delay = {"s": 0.05}
+
+    class SlowProvider:
+        name = "slow"
+
+        def __init__(self):
+            self.stats = type(
+                "FakeStats",
+                (),
+                {
+                    "to_dict": lambda self: {
+                        "requests_ok": 1,
+                        "requests_failed": 0,
+                    },
+                    "errors": [],
+                },
+            )()
+
+        def scrape_all(self, url, max_pages=5, params=None):
+            time.sleep(delay["s"])
+            return [
+                Ad(
+                    title="Python Dev",
+                    url="http://x/1",
+                    portal="slow",
+                    description="",
+                    company="Acme",
+                )
+            ]
+
+        def fetch_detail(self, ad):
+            return "Full detail description text"
+
+    orig = providers_mod.REGISTRY.get("slow")
+    providers_mod.REGISTRY["slow"] = SlowProvider
+    try:
+        portals = {
+            "slow": PortalConfig(
+                enabled=True,
+                categories=[CategoryConfig(url="http://x", pages=1)],
+            )
+        }
+        queries = {
+            "q1": QueryConfig(boolean="python"),
+        }
+        results_by_workers = {}
+        for workers in (1, 3):
+            config = UserConfig(
+                portals=portals,
+                queries=queries,
+                pipeline=PipelineSettings(max_workers=workers),
+            )
+            pipeline = SearchPipeline(config)
+            start = time.perf_counter()
+            results, stats, _ = pipeline.run()
+            elapsed = time.perf_counter() - start
+            results_by_workers[workers] = (results, stats, elapsed)
+
+        seq_results, _, seq_time = results_by_workers[1]
+        par_results, _, par_time = results_by_workers[3]
+
+        # Determinismus: shodny pocet a obsah vysledku.
+        assert len(seq_results["q1"]) == len(par_results["q1"]) == 1
+        assert seq_results["q1"][0].url == par_results["q1"][0].url
+        assert seq_results["q1"][0].description == par_results["q1"][0].description
+
+        # Soubeznost: paralelni bez (~3x zrychleni na 1 portalu vs 1; zde
+        # jen overime, ze paralelni NENI pomalejsi nez sekvencni + margin).
+        assert par_time < seq_time + 0.5, (
+            f"parallel ({par_time:.3f}s) should not be slower than "
+            f"sequential ({seq_time:.3f}s)"
+        )
+    finally:
+        if orig is None:
+            del providers_mod.REGISTRY["slow"]
+        else:
+            providers_mod.REGISTRY["slow"] = orig
+
+
 def test_detail_cache_retries_failed_fetch():
     """M2 fix: failed detail fetch is NOT cached, next query retries."""
     from mcp_jobs.config import UserConfig

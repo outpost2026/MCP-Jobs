@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
 
-from .config import UserConfig
+from .config import PortalConfig, UserConfig
 from .matcher import has_exclude_terms, matches_ad
 from .models import Ad
 from .providers import REGISTRY
@@ -123,31 +124,72 @@ class SearchPipeline:
 
         return results, all_stats, pool_sizes
 
+    def _scrape_one(
+        self, portal_name: str, pconf: PortalConfig
+    ) -> tuple[str, list[Ad], Optional[dict]]:
+        """Scrape JEDNOHO portalu (bezi v samostatnem vlakne).
+
+        Kazdy portal ma vlastni provider instanci + vlastni HttpClient
+        (Session + throttle), takze mezi vlakny neni sdileny mutable stav.
+        """
+        provider = REGISTRY.get(portal_name)()
+        pool: list[Ad] = []
+        for cat in pconf.categories:
+            try:
+                ads = provider.scrape_all(cat.url, cat.pages, cat.params)
+                logger.info(f"  {portal_name}: {cat.url} -> {len(ads)} ads")
+                pool.extend(ads)
+            except Exception as e:
+                logger.error(f"  {portal_name}: {cat.url} -> error: {e}")
+                provider.stats.errors.append(str(e))
+
+        try:
+            sd = provider.stats.to_dict()
+        except Exception:
+            sd = {}
+        stats = None
+        if sd.get("requests_ok") or sd.get("requests_failed"):
+            stats = sd
+        return portal_name, pool, stats
+
     def _scrape_all(self) -> tuple[list[Ad], dict[str, dict], dict[str, int]]:
         pool: list[Ad] = []
         all_stats: dict[str, dict] = {}
 
-        for portal_name, pconf in self.config.portals.items():
-            if not pconf.enabled:
-                continue
-            provider_cls = REGISTRY.get(portal_name)
-            if not provider_cls:
-                logger.warning(f"Unknown portal '{portal_name}', skipping")
-                continue
+        tasks = [
+            (name, pconf)
+            for name, pconf in self.config.portals.items()
+            if pconf.enabled and REGISTRY.get(name)
+        ]
 
-            provider = provider_cls()
-            for cat in pconf.categories:
-                try:
-                    ads = provider.scrape_all(cat.url, cat.pages, cat.params)
-                    logger.info(f"  {portal_name}: {cat.url} -> {len(ads)} ads")
-                    pool.extend(ads)
-                except Exception as e:
-                    logger.error(f"  {portal_name}: {cat.url} -> error: {e}")
-                    provider.stats.errors.append(str(e))
+        workers = self.config.pipeline.max_workers or len(tasks)
+        workers = max(1, min(workers, len(tasks)))
 
-            sd = provider.stats.to_dict()
-            if sd["requests_ok"] or sd["requests_failed"]:
-                all_stats[portal_name] = sd
+        if workers == 1 or len(tasks) <= 1:
+            # Sekvencni beh (puvodni chovani) — determinismus zachovan.
+            for name, pconf in tasks:
+                _, got, stats = self._scrape_one(name, pconf)
+                pool.extend(got)
+                if stats:
+                    all_stats[name] = stats
+        else:
+            logger.info(
+                f"Scraping {len(tasks)} portals in parallel (max_workers={workers})"
+            )
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                futures = {
+                    ex.submit(self._scrape_one, name, pconf): name
+                    for name, pconf in tasks
+                }
+                for fut in as_completed(futures):
+                    name = futures[fut]
+                    try:
+                        _, got, stats = fut.result()
+                        pool.extend(got)
+                        if stats:
+                            all_stats[name] = stats
+                    except Exception as e:
+                        logger.error(f"  {name}: parallel scrape failed: {e}")
 
         deduped = _dedup(pool)
         pool_sizes: dict[str, int] = {}
