@@ -267,3 +267,42 @@ def test_validate_boolean_malformed():
 
 def test_missing_rparen_error():
     assert evaluate_boolean("Python", "(python OR java") is False
+
+
+# ── Edge cases: parser by mel byt odolny (fail-safe, ne fail-crash) ──
+
+
+def test_boolean_edge_double_not():
+    """NOT NOT x — parser vyhodi ValueError, evaluate vrati False."""
+    assert validate_boolean("NOT NOT python") is False
+    assert evaluate_boolean("Python developer", "NOT NOT python") is False
+
+
+def test_boolean_edge_double_and():
+    """AND AND — parser vyhodi ValueError, evaluate vrati False."""
+    assert validate_boolean("AND AND python") is False
+    assert evaluate_boolean("Python developer", "AND AND python") is False
+
+
+def test_boolean_edge_double_or():
+    """OR OR — parser vyhodi ValueError, evaluate vrati False."""
+    assert validate_boolean("OR OR python") is False
+    assert evaluate_boolean("Python developer", "OR OR python") is False
+
+
+def test_boolean_edge_empty_parens():
+    """() — parser vyhodi ValueError, evaluate vrati False."""
+    assert validate_boolean("()") is False
+    assert evaluate_boolean("Python developer", "()") is False
+
+
+def test_boolean_edge_only_operators():
+    """AND OR NOT — parser vyhodi ValueError, evaluate vrati False."""
+    assert validate_boolean("AND OR NOT") is False
+    assert evaluate_boolean("Python developer", "AND OR NOT") is False
+
+
+def test_boolean_edge_trailing_operator():
+    """python AND — parser vyhodi ValueError (chybi righthand side)."""
+    assert validate_boolean("python AND") is False
+    assert evaluate_boolean("Python developer", "python AND") is False

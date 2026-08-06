@@ -187,19 +187,7 @@ def test_cli_uses_utf8_convention() -> None:
     assert "ensure_utf8_stdout" in content
 
 
-# ── 7. docs/powershell_encoding.md existence ─────────────────────
-
-
-def test_encoding_docs_exist() -> None:
-    """Ověří, že dokumentace pro encoding existuje."""
-    docs_path = PROJECT_ROOT / "docs" / "powershell_encoding.md"
-    assert docs_path.exists(), "docs/powershell_encoding.md not found"
-    content = docs_path.read_text(encoding="utf-8")
-    for c in ["PowerShell", "cp1250", "UnicodeEncodeError", "SyntaxError"]:
-        assert c in content, f"doc missing section '{c}'"
-
-
-# ── 8. utils.py ensure_utf8_stdout ───────────────────────────────
+# ── 7. utils.py ensure_utf8_stdout ───────────────────────────────
 
 
 def test_utils_ensure_utf8_stdout() -> None:

@@ -57,6 +57,8 @@ class BaseScraper(ABC):
         self.stats = ScraperRunStats(portal=self.name)
 
     def _fetch_page(self, url: str) -> Optional[str]:
+        # THREAD-SAFE: Kazde vlaskno ma vlastni provider + HttpClient instanci
+        # (pipeline._scrape_one). Stats NENI sdilen mezi vlakny.
         start = time.perf_counter()
         text = self.http.get_text(url)
         elapsed_ms = (time.perf_counter() - start) * 1000

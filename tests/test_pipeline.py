@@ -358,9 +358,15 @@ def test_detail_cache_retries_failed_fetch():
         )
         pipeline = SearchPipeline(config)
         results, _, _ = pipeline.run()
-        assert calls["n"] == 2, f"expected 2 detail fetches (retry), got {calls['n']}"
+        # BUG-001 fix: neuspech se cache jako _FAILED, retry se NEDela.
+        # Drive: calls["n"]==2 (retry). Nyni: calls["n"]==1 (cache failure).
+        assert calls["n"] == 1, (
+            f"expected 1 detail fetch (cached failure), got {calls['n']}"
+        )
         assert "q1" in results and "q2" in results
-        assert results["q1"][0].description == "Full detail description text"
+        # Description zustava prazdne (fetch selhal, cached _FAILED).
+        assert results["q1"][0].description == ""
+        assert results["q2"][0].description == ""
     finally:
         if orig is None:
             del providers_mod.REGISTRY["flaky"]

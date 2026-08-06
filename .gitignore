@@ -18,6 +18,10 @@ Thumbs.db
 # Environment
 .env
 *.local
+credentials*
+*.key
+*.pem
+*token*
 
 # Data — keep CSV/MD outputs out of repo until needed
 *.csv

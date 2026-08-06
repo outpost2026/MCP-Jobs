@@ -14,6 +14,9 @@ from .providers.base import BaseScraper
 
 logger = logging.getLogger(__name__)
 
+# Sentinel pro cached failed detail fetch — odlisny od None (" jeste nezkouseno").
+_FAILED = object()
+
 
 def _location_filter(ad: Ad, locations: list[str]) -> bool:
     if not locations or not ad.location:
@@ -74,11 +77,25 @@ class SearchPipeline:
         pool, all_stats, pool_sizes = self._scrape_all()
         results: dict[str, list[Ad]] = {}
 
-        # Lazy detail fetch: description doplnujeme jednou per URL
-        # (stejny inzerat muze projit vice query). Sdileny HttpClient.
-        detail_cache: dict[str, Optional[str]] = {}
-        detail_providers: dict[str, BaseScraper] = {}
+        # ── Faze 1: Collect unikatni URL pres vsechny query ────────
+        # Stejny ad muze projit vice query — detail fetch chceme jen 1x per URL.
+        urls_needing_detail: set[str] = set()
+        for qconf in self.config.queries.values():
+            if not qconf.boolean:
+                continue
+            for ad in pool:
+                if not ad.description and ad.url not in urls_needing_detail:
+                    if qconf.portals and ad.portal not in qconf.portals:
+                        continue
+                    if matches_ad(ad, qconf.boolean):
+                        urls_needing_detail.add(ad.url)
 
+        # ── Faze 2: Parallel detail fetch (per-portal throttle) ────
+        detail_cache: dict[str, Optional[str]] = {}
+        if urls_needing_detail:
+            self._fetch_details_parallel(urls_needing_detail, pool, detail_cache)
+
+        # ── Faze 3: Filter query nad naplnenou cache ───────────────
         for name, qconf in self.config.queries.items():
             if not qconf.boolean:
                 logger.warning("Query %r has empty boolean expression — skipping", name)
@@ -90,26 +107,11 @@ class SearchPipeline:
                     continue
                 if not matches_ad(ad, qconf.boolean):
                     continue
+                # Aplikuj cached detail (uspech i neuspech = cached).
                 if not ad.description:
-                    if ad.url not in detail_cache:
-                        if ad.portal not in detail_providers:
-                            provider_cls = REGISTRY.get(ad.portal)
-                            detail_providers[ad.portal] = (
-                                provider_cls() if provider_cls else None
-                            )
-                        provider = detail_providers.get(ad.portal)
-                        if provider:
-                            try:
-                                detail = provider.fetch_detail(ad)
-                                if detail:
-                                    detail_cache[ad.url] = detail
-                            except Exception as e:
-                                logger.warning(
-                                    "detail fetch failed for %s: %s", ad.url, e
-                                )
-                    detail = detail_cache.get(ad.url)
-                    if detail:
-                        ad.description = detail
+                    cached = detail_cache.get(ad.url)
+                    if cached is not _FAILED and cached:
+                        ad.description = cached
                 if has_exclude_terms(
                     ad.title, qconf.exclude, description=ad.description or ""
                 ):
@@ -123,6 +125,78 @@ class SearchPipeline:
             results[name] = filtered
 
         return results, all_stats, pool_sizes
+
+    def _fetch_details_parallel(
+        self,
+        urls: set[str],
+        pool: list[Ad],
+        detail_cache: dict[str, Optional[str]],
+    ) -> None:
+        """Paralelni detail fetch — seskupeny per-portal.
+
+        Kazdy portal ma vlastni ThreadPoolExecutor s vlastnim throttle
+        (pres HttpClient), takze neni riziko prekroceni rate limitu.
+        Neuspech se zapise do detail_cache jako _FAILED, aby se
+        opakovane query na stejnou padlou URL nedely retry.
+        """
+        # Map URL -> portal pro grouping
+        url_portal: dict[str, str] = {}
+        for ad in pool:
+            if ad.url in urls:
+                url_portal[ad.url] = ad.portal
+
+        # Group by portal
+        by_portal: dict[str, list[str]] = {}
+        for url, portal in url_portal.items():
+            by_portal.setdefault(portal, []).append(url)
+
+        def _fetch_one(url: str, portal_name: str) -> tuple[str, Optional[str]]:
+            provider_cls = REGISTRY.get(portal_name)
+            if not provider_cls:
+                return url, None
+            from .http import HttpClient
+
+            provider = provider_cls(
+                http_client=HttpClient(request_delay=self.config.pipeline.request_delay)
+            )
+            # Najdi ad objekt pro fetch_detail
+            ad_obj = next((a for a in pool if a.url == url), None)
+            if not ad_obj:
+                return url, None
+            try:
+                detail = provider.fetch_detail(ad_obj)
+                return url, detail
+            except Exception as e:
+                logger.warning("detail fetch failed for %s: %s", url, e)
+                return url, None
+
+        workers = self.config.pipeline.max_workers or len(by_portal)
+        workers = max(1, min(workers, len(by_portal)))
+
+        if workers == 1 or len(by_portal) <= 1:
+            for portal_name, portal_urls in by_portal.items():
+                for url in portal_urls:
+                    url, detail = _fetch_one(url, portal_name)
+                    detail_cache[url] = detail if detail else _FAILED
+        else:
+            logger.info(
+                f"Fetching details for {len(urls)} URLs across {len(by_portal)} portals "
+                f"(max_workers={workers})"
+            )
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                futures = {}
+                for portal_name, portal_urls in by_portal.items():
+                    for url in portal_urls:
+                        fut = ex.submit(_fetch_one, url, portal_name)
+                        futures[fut] = url
+                for fut in as_completed(futures):
+                    try:
+                        url, detail = fut.result()
+                        detail_cache[url] = detail if detail else _FAILED
+                    except Exception as e:
+                        url = futures[fut]
+                        logger.warning("detail fetch future failed for %s: %s", url, e)
+                        detail_cache[url] = _FAILED
 
     def _scrape_one(
         self, portal_name: str, pconf: PortalConfig

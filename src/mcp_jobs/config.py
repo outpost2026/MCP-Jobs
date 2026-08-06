@@ -54,10 +54,14 @@ class PipelineSettings:
     request_delay: minimalni odstup mezi 2 requesty na PORTAL (s).
                   Zachovava scrape politiku (slusnost vuci server), jen
                   zkracuje cekaci okno. 429/5xx stale kryptuje urllib3 Retry.
+                  Clamp: max(0.2, request_delay) — zabrani request_delay=0.
     """
 
     max_workers: int = 0
     request_delay: float = 0.5
+
+    def __post_init__(self) -> None:
+        self.request_delay = max(0.2, self.request_delay)
 
 
 @dataclass
