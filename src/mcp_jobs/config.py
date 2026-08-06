@@ -55,10 +55,15 @@ class PipelineSettings:
                   Zachovava scrape politiku (slusnost vuci server), jen
                   zkracuje cekaci okno. 429/5xx stale kryptuje urllib3 Retry.
                   Clamp: max(0.2, request_delay) — zabrani request_delay=0.
+    url_allowlist: mnozina povolenych domen pro scraping. Prazdna = bez
+                  validace (pro testy). Vychozi = bazos.cz, jobs.cz, prace.cz.
     """
 
     max_workers: int = 0
     request_delay: float = 0.5
+    url_allowlist: list[str] = field(
+        default_factory=lambda: ["bazos.cz", "jobs.cz", "prace.cz"]
+    )
 
     def __post_init__(self) -> None:
         self.request_delay = max(0.2, self.request_delay)

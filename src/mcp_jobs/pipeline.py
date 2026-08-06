@@ -5,6 +5,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from .config import PortalConfig, UserConfig
 from .matcher import has_exclude_terms, matches_ad
@@ -231,6 +232,17 @@ class SearchPipeline:
             stats = sd
         return portal_name, pool, stats
 
+    @staticmethod
+    def _validate_url(url: str, allowed: set[str]) -> bool:
+        """SEC-001: Overi, ze URL patri do allowlist domen."""
+        if not allowed:
+            return True  # Prazdna allowlist = bez validace (testy).
+        try:
+            host = urlparse(url).hostname or ""
+        except Exception:
+            return False
+        return any(host == d or host.endswith("." + d) for d in allowed)
+
     def _scrape_all(self) -> tuple[list[Ad], dict[str, dict], dict[str, int]]:
         pool: list[Ad] = []
         all_stats: dict[str, dict] = {}
@@ -240,6 +252,23 @@ class SearchPipeline:
             for name, pconf in self.config.portals.items()
             if pconf.enabled and REGISTRY.get(name)
         ]
+
+        # SEC-001: Validace category URL proti allowlist.
+        allowed = set(self.config.pipeline.url_allowlist)
+        for name, pconf in tasks:
+            for cat in pconf.categories:
+                if not self._validate_url(cat.url, allowed):
+                    logger.error(
+                        "BLOCKED: category URL %r for portal %r is not in "
+                        "allowed domains: %s",
+                        cat.url,
+                        name,
+                        allowed,
+                    )
+                    raise ValueError(
+                        f"Category URL {cat.url!r} for portal {name!r} "
+                        f"not in allowed domains: {allowed}"
+                    )
 
         workers = self.config.pipeline.max_workers or len(tasks)
         workers = max(1, min(workers, len(tasks)))

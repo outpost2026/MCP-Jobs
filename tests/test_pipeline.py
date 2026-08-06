@@ -262,7 +262,7 @@ def test_parallel_deterministic_same_as_sequential():
             config = UserConfig(
                 portals=portals,
                 queries=queries,
-                pipeline=PipelineSettings(max_workers=workers),
+                pipeline=PipelineSettings(max_workers=workers, url_allowlist=[]),
             )
             pipeline = SearchPipeline(config)
             start = time.perf_counter()
@@ -334,6 +334,8 @@ def test_detail_cache_retries_failed_fetch():
     orig = providers_mod.REGISTRY.get("flaky")
     providers_mod.REGISTRY["flaky"] = FlakyProvider
     try:
+        from mcp_jobs.config import PipelineSettings as _PS
+
         config = UserConfig(
             portals={
                 "flaky": __import__(
@@ -355,6 +357,7 @@ def test_detail_cache_retries_failed_fetch():
                     "mcp_jobs.config", fromlist=["QueryConfig"]
                 ).QueryConfig(boolean="python"),
             },
+            pipeline=_PS(url_allowlist=[]),
         )
         pipeline = SearchPipeline(config)
         results, _, _ = pipeline.run()
