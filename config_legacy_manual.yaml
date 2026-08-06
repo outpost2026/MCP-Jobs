@@ -88,7 +88,7 @@ queries:
     portals: ["bazos", "pracecz", "jobs"]
 
   udrzbar:
-    boolean: "(udrzbar OR udrzba OR udrzbarka OR maintenance OR (servisni AND technik)) NOT (it OR software OR web OR datovy)"
+    boolean: "(udrzbar OR udrzba OR udrzbarka OR maintenance OR (servisni AND technik)) NOT (it OR software OR web OR datovy OR klimatizace OR chlazeni OR tramvaj OR automechanik OR mechanik OR elektrik OR elektro OR semafor OR doprava)"
     exclude: [*_x_exclude_common, *_x_exclude_nemecko, "uklizec", "uklízeč", "uklid", "úklid", "ict", "laborator", "laboratoř", "it podpora"]
     min_salary: 0
     locations: ["praha"]
@@ -116,14 +116,14 @@ queries:
     portals: ["bazos"]
 
   strechy:
-    boolean: "(strecha OR střecha OR pokryvac OR pokrývač OR okap)"
+    boolean: "(strecha OR střecha OR pokryvac OR pokrývač OR okap OR krovy OR latovani OR krytina OR bitumen OR plech OR tondach OR betonova OR skridla)"
     exclude: [*_x_exclude_common, *_x_exclude_nemecko, "auto", "garaz", "garáž", "karoserie"]
     min_salary: 0
     locations: ["praha"]
     portals: ["bazos"]
 
   cnc_jobs:
-    boolean: "((cnc AND (operator OR obsluha OR serizovac OR serizovani OR nastavovac OR obrabeni)) OR (frezar AND (obsluha OR operator OR serizovani))) NOT (cam OR sprutcam OR mastercam OR postprocesing OR programovani OR programator OR nabizim OR nabizime OR provadim OR provadime)"
+    boolean: "((cnc AND (operator OR obsluha OR serizovac OR serizovani OR nastavovac OR obrabeni OR nastrojar OR nastroj)) OR (frezar AND (obsluha OR operator OR serizovani)) OR (obrabecich AND stroju)) NOT (cam OR sprutcam OR mastercam OR postprocesing OR programovani OR programator OR nabizim OR nabizime OR provadim OR provadime)"
     exclude: [*_x_exclude_common, *_x_exclude_nemecko, "personalni", "pronajem", "zprostredkovani", "ubytovn"]
     min_salary: 0
     locations: ["brno", "ostrava", "praha"]

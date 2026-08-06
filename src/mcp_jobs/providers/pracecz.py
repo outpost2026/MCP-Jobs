@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import quote_plus
@@ -105,6 +106,27 @@ class PraceczScraper(BaseScraper):
                 if salary_el:
                     salary = salary_el.get_text(strip=True)
 
+                # DEV NOTE: prace.cz merge salary+date v jednom stringu
+                # "Plat:50 000 – 70 000 Kč/měsícJen pár hodin"
+                # Oddělujeme podle known date patterns
+                date = ""
+                if salary:
+                    # Extract date from salary string (merged by portal)
+                    date_match = re.search(
+                        r"(Přidáno\s+)?(dnes|včera|před\s+\d+\s+\w+|"
+                        r"Jen\s+pár\s+hodin|Dnešní|Zítra|Končí\s+za\s+\d+\s+\w+)",
+                        salary,
+                    )
+                    if date_match:
+                        date = date_match.group(0).strip()
+                        salary = salary[: date_match.start()].strip()
+
+                # Also extract date from dedicated date element
+                if not date:
+                    date_el = card.select_one("span.typography-body-small-regular")
+                    if date_el:
+                        date = date_el.get_text(strip=True)
+
                 ad = Ad(
                     title=title,
                     url=url,
@@ -112,6 +134,7 @@ class PraceczScraper(BaseScraper):
                     company=company if company else None,
                     location=location if location else None,
                     salary=salary if salary else None,
+                    date=date if date else None,
                     matched_keyword=query,
                 )
                 ads.append(ad)

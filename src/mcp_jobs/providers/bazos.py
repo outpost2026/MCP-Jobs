@@ -20,9 +20,72 @@ class BazosScraper(BaseScraper):
     BASE_URL = "https://www.bazos.cz"
     _SUBDOMAIN_RE = re.compile(r"(https?://[^/]+)")
 
+    # DEV NOTE: Bazos neni pracovni portal — soukroma inzerce.
+    # Company/seller info JEN z detailu, v contact linku s parametrem jmeno=
+    # Priklad: <a href="hodnoceni.php?idmail=...&jmeno=www.masivnikuchyne.cz">www.masivnikuchyne.cz</a>
+    _CONTACT_LINK_RE = re.compile(r"jmeno=([^&\"]+)")
+
     @property
     def name(self) -> str:
         return "bazos"
+
+    def fetch_detail(self, ad: Ad) -> Optional[str]:
+        """Fetch bazos detail page for company/seller info.
+
+        Bazos neni pracovni portal — company info neni v listing page.
+        Jedinym zdrojem je contact link na detail strance s parametrem jmeno=.
+        """
+        if not ad.url:
+            return None
+
+        text = self._fetch_page(ad.url)
+        if not text:
+            return None
+
+        try:
+            from bs4 import BeautifulSoup
+
+            soup = BeautifulSoup(text, "html.parser")
+
+            # Extract seller/company from contact link
+            contact_links = soup.find_all("a", href=True)
+            for link in contact_links:
+                href = link.get("href", "")
+                if "hodnoceni.php" in href or "idmail=" in href:
+                    match = self._CONTACT_LINK_RE.search(href)
+                    if match:
+                        seller = match.group(1)
+                        # URL decode
+                        from urllib.parse import unquote
+
+                        seller = unquote(seller)
+                        if seller:
+                            ad.company = seller
+                            break
+
+            # Extract description from detail page
+            desc_selectors = [
+                "div.inzeratydetail popis",  # bazos uses div.popis for description
+                "div.popis",
+                "div.inzeratydetail",
+            ]
+            for sel in desc_selectors:
+                el = soup.select_one(sel)
+                if el:
+                    body = el.get_text(strip=True)
+                    if body:
+                        return body
+
+            # Fallback: get all text from the ad detail div
+            detail_div = soup.select_one("div.inzeratydetail")
+            if detail_div:
+                return detail_div.get_text(strip=True)
+
+        except Exception as e:
+            logger.warning("Bazos detail parse failed for %s: %s", ad.url, e)
+            return None
+
+        return None
 
     def build_search_url(self, query: str) -> str:
         return f"{self.BASE_URL}/search.php?hledat={quote_plus(query)}"
