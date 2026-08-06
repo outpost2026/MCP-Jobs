@@ -10,7 +10,7 @@
 
 # MCP-Jobs
 
-MCP server for scraping Czech job portals with boolean matching, exclude lists, and location/salary filters. Successor to legacy scrapers — **4.5× faster**, config-driven, 125 unit tests, production hardening.
+MCP server for scraping Czech job portals with boolean matching, exclude lists, and location/salary filters. Successor to legacy scrapers — **5.8× faster**, config-driven, 131 unit tests, production hardening.
 
 ## Features
 
@@ -24,7 +24,7 @@ MCP server for scraping Czech job portals with boolean matching, exclude lists, 
 - **Pages guard** — max 50 pages per call (resource abuse prevention)
 - **Auto-validation** — boolean expressions validated at config load time (fail-fast)
 - **MCP-native** — stdio transport, FastMCP SDK, ready for AI agent integration
-- **125 unit tests** — pytest, full coverage of matcher, pipeline, providers, config
+- **131 unit tests** — pytest, full coverage of matcher, pipeline, providers, config
 - **Structured logging** — per-card skip count, 0-ads alert, no silent failures
 - **MCP L3 Prompts** — `search_expert` prompt for natural language to boolean query conversion
 
@@ -64,7 +64,7 @@ pip install -e ".[dev]"
 copy config.yaml.example config.yaml
 # Edit postal code, radius, queries, excludes as needed
 
-# Tests (125 tests)
+# Tests (131 tests)
 pytest tests/ -v
 
 # ETL pipeline
@@ -151,12 +151,12 @@ Each ETL run generates JSON with per-provider timing:
 
 | Metric | Legacy | MCP-Jobs | Improvement |
 |--------|--------|----------|-------------|
-| Pipeline time | ~210 s | **~46 s** | **4.5× faster** |
+| Pipeline time | ~210 s | **~36 s** | **5.8× faster** |
 | Raw ads scraped | ~500 | **1 073** | 2× more data |
-| Per-provider bazos | ~80 s | **~24 s** | **3.3× faster** |
-| Per-provider jobs | ~40 s | **~7.5 s** | **5.3× faster** |
-| Per-provider pracecz | ~60 s | **~11 s** | **5.4× faster** |
-| Unit tests | 0 | **125** | — |
+| Per-provider bazos | ~80 s | **~12 s** | **6.7× faster** |
+| Per-provider jobs | ~40 s | **~8 s** | **5.0× faster** |
+| Per-provider pracecz | ~60 s | **~16 s** | **3.8× faster** |
+| Unit tests | 0 | **131** | — |
 | Rate limiting | `sleep(1.0-2.5)` random | **1.0s precise delay** | ToS compliant |
 
 ### Key Improvements v0.3.1 → v0.4.0 (Iteration 3→8)
@@ -169,10 +169,13 @@ Each ETL run generates JSON with per-provider timing:
 | Boolean validation | runtime only | **config-load time** |
 | MCP error reporting | inconsistent | **unified `[{"error":...}]`** |
 | Config error messages | raw TypeError | **user-friendly** |
-| Test count | 97 | **125** |
+| Test count | 97 | **131** |
 | Inline import in loop | yes | **top-level** |
 | Silent errors | yes | **eliminated via logger** (http/storage/base) |
 | Persistence | in-memory | **query_store.json + correlation_cache.json** |
+| Detail fetch | sequential | **parallel** (ThreadPoolExecutor, max_workers=3) |
+| Domain allowlist | none | **SEC-001 SSRF protection** |
+| Request delay clamp | none | **min 0.2s** (config safety) |
 
 ### Architecture & Quality
 
@@ -182,7 +185,7 @@ Each ETL run generates JSON with per-provider timing:
 | Matching | First-match-wins, AND-only | Boolean AST (AND/OR/NOT/parens) + LRU cache |
 | Diacritics | Manual mapping | NFKD normalization |
 | Exclude | Pipe in CSV (title only) | List in YAML (title+desc) |
-| Location | Postal code hardcoded | YAML params (per-category) |
+| Location | Hardcoded PSČ | YAML params (per-category) |
 | Salary filter | ❌ None | ✅ regex `_SALARY_NUM_RE` |
 | Rate limiting | `sleep(1.0-2.5)` random | ✅ 1.0s precise delay |
 | Error handling | `except: continue` (silent) | Structured logging + skip count + MCP error contract |
@@ -191,7 +194,9 @@ Each ETL run generates JSON with per-provider timing:
 | Output | CSV+MD per portal | Unified JSON |
 | Protocol | None | MCP (Model Context Protocol) |
 | Prompts | N/A | `search_expert` (MCP L3) |
-| Tests | 0 | **125 pytest** |
+| Tests | 0 | **131 pytest** |
+| Detail fetch | sequential | **parallel** (ThreadPoolExecutor) |
+| Security | none | **domain allowlist** (SSRF protection) |
 
 ## MCP Maturity
 
@@ -209,14 +214,17 @@ Each ETL run generates JSON with per-provider timing:
 - `docs/audit_report_claude.md` — v0.3.0 audit
 - `docs/audit_MCP-Jobs_v0.3.1.md` — Cross-LLM meta-audit (Sonnet 5.0 peer review)
 - `docs/audit_prompt_v1.1.docx` — Current audit prompt for frontier LLMs
-- `output/etl_metrics_iter4.json` — Latest ETL metrics
+- `docs/cross_llm_code_review_prompt.md` — Cross-LLM audit prompt
+- `docs/semantic_analysis_cross_review_2026-08-06.md` — EROI analysis + action plan
+- `docs/refresh_run_it_jobs_2026-08-06.md` — Fresh run report (AI_NATIVE)
+- `docs/refresh_run_legacy_jobs_2026-08-06.md` — Fresh run report (LEGACY_MANUAL)
 
 ## Known Limitations
 
-- **Rate limiting**: 1.0s delay = 46s pipeline (vs 23s without). Required for ToS compliance.
-- **Detail fetch (v0.4.0)**: lazy fetch of missing descriptions extends pipeline runtime to tens of minutes on large pools — cap planned (Phase 09 product package)
+- **Rate limiting**: 1.0s delay = 36s pipeline (vs 23s without). Required for ToS compliance.
 - **Double scrape**: `SearchPipeline.run()` always rescrapes internally — no existing pool injection
 - **Description matching**: word boundaries DISABLED on description (intentional — Czech inflection)
 - **Location filter**: substring matching (no geocoding), sufficient for "Praha"
 - **Salary filter**: heuristic number extraction (varying formats across portals)
 - **Security**: threat model not documented — must be added before public release
+- **Domain allowlist**: SEC-001 SSRF protection — only allowed domains (bazos.cz, jobs.cz, prace.cz)
