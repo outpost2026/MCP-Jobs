@@ -4,6 +4,8 @@
 **Config:** Legacy jobs profile (8 queries)
 **Portals:** jobs, bazos, pracecz
 
+**Fresh Run Update (22:55):** Parallel detail fetch (Sprint 2 — C1) had minimal impact on legacy profile (38.6s vs ~39s). Results identical: 46 matched, same queries. No regression.
+
 ---
 
 ## 1. Per-Query Results Table

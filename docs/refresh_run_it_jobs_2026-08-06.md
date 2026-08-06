@@ -4,6 +4,8 @@
 **Config:** IT jobs profile (8 queries)
 **Portals:** jobs, bazos, pracecz
 
+**Fresh Run Update (22:54):** Parallel detail fetch (Sprint 2 — C1) reduced pipeline time from 58.5s to 36.3s (1.61x speedup). Results identical: 28 matched, same queries. No regression.
+
 ---
 
 ## 1. Per-Query Results Table
