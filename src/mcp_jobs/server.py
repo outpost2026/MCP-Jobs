@@ -330,27 +330,44 @@ def get_ads_report_resource(query_id: str) -> str:
     timestamp = _query_store[query_id]["timestamp"]
 
     # Reconstruct Ad objects for markdown generation
-    all_ads: list[Ad] = []
+    ads_by_query: dict[str, list[Ad]] = {}
     for entry in data:
+        qname = entry.get("query", "query")
+        ads = []
         for ad_dict in entry.get("results", []):
-            all_ads.append(
+            ads.append(
                 Ad(
                     title=ad_dict.get("title", ""),
                     url=ad_dict.get("url", ""),
                     portal=ad_dict.get("portal", ""),
+                    date=ad_dict.get("date"),
                     company=ad_dict.get("company"),
                     location=ad_dict.get("location"),
                     salary=ad_dict.get("salary"),
                     price=ad_dict.get("price"),
                     description=ad_dict.get("description"),
+                    category_name=ad_dict.get("category_name"),
                     matched_keyword=ad_dict.get("matched_keyword", ""),
                     scraped_at=ad_dict.get("scraped_at", ""),
                 )
             )
+        ads_by_query[qname] = ads
 
-    report = Storage.markdown_report(all_ads)
-    header = f"> Generated: {timestamp} | Queries: {len(data)} | Total ads: {len(all_ads)}\n\n"
-    return header + report
+    total_raw = sum(len(a) for a in ads_by_query.values())
+    from .report import ReportMeta, render_report
+
+    meta = ReportMeta(
+        timestamp=timestamp,
+        total_matched=total_raw,
+        total_raw=total_raw,
+        precision=round((total_raw / total_raw) * 100, 1) if total_raw else 0.0,
+        portals=sorted(
+            {a.portal for ads in ads_by_query.values() for a in ads if a.portal}
+        ),
+        queries=list(ads_by_query.keys()),
+    )
+    report = render_report(ads_by_query, meta)
+    return report.markdown
 
 
 @mcp.prompt(

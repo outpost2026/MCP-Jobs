@@ -17,7 +17,9 @@ logging.basicConfig(
 )
 
 from mcp_jobs.config import UserConfig
+from mcp_jobs.models import Ad
 from mcp_jobs.pipeline import SearchPipeline
+from mcp_jobs.report import ReportMeta, render_report
 from mcp_jobs.storage import CorrelationRecord, Storage
 
 OUTPUT_DIR = Path("output")
@@ -43,82 +45,61 @@ def _profile_tag_from_profile(profile: str) -> str:
 
 
 def _write_markdown_report(output: dict, ts: str, profile_tag: str = "") -> Path:
-    """Generate high-SNR human-readable MD report with clickable links."""
-    lines: list[str] = []
-    _a = lines.append
+    """Generate high-SNR human-readable report (MD + HTML) via unified renderer."""
     profile = output.get("profile", "default")
     profile_tag = profile_tag or _profile_tag_from_profile(profile)
 
-    _a("# MCP-Jobs Pipeline Report")
-    _a("")
-    _a(
-        f"**Spuštěno:** {output['timestamp']} | **Trvání:** {output['elapsed_seconds']}s | **Matched:** {output['total_matched']}"
+    # Build per-query ad mapping for the unified renderer
+    ads_by_query: dict[str, list[Ad]] = {}
+    for qname, ad_dicts in output["results"].items():
+        ads = []
+        for d in ad_dicts:
+            ads.append(
+                Ad(
+                    title=d.get("title", ""),
+                    url=d.get("url", ""),
+                    portal=d.get("portal", ""),
+                    date=d.get("date"),
+                    company=d.get("company"),
+                    location=d.get("location"),
+                    salary=d.get("salary"),
+                    price=d.get("price"),
+                    description=d.get("description"),
+                    category_name=d.get("category_name"),
+                    matched_keyword=d.get("matched_keyword", ""),
+                )
+            )
+        ads_by_query[qname] = ads
+
+    total_raw = output.get("total_raw", sum(len(ads) for ads in ads_by_query.values()))
+    total_matched = output.get("total_matched", len(ads_by_query))
+    precision = round((total_matched / total_raw) * 100, 1) if total_raw else 0.0
+
+    meta = ReportMeta(
+        timestamp=output.get("timestamp", ""),
+        elapsed_seconds=output.get("elapsed_seconds", 0.0),
+        total_matched=total_matched,
+        total_raw=total_raw,
+        precision=precision,
+        profile=profile,
+        config_file=output.get("config_file", ""),
+        json_link=f"etl_{ts}.json",
+        portals=list(output["config"].get("portals", [])),
+        queries=list(output["config"].get("queries", [])),
     )
-    _a(f"**Profil (config):** `{profile}`")
-    portals = ", ".join(output["config"]["portals"])
-    queries = ", ".join(output["config"]["queries"])
-    _a(f"**Portály:** {portals} | **Query:** {queries}")
-    _a("")
 
-    _a("## Přehled")
-    _a("")
-    _a("| # | Query | Počet | Portály |")
-    _a("|---|-------|-------|---------|")
-
-    summary = output["summary"]
-    sorted_queries = sorted(summary.items(), key=lambda x: -x[1]["count"])
-    for idx, (qname, qdata) in enumerate(sorted_queries, 1):
-        portals_str = ", ".join(qdata["portals"])
-        _a(f"| {idx} | {qname} | {qdata['count']} | {portals_str} |")
-
-    _a("")
-
-    for idx, (qname, qdata) in enumerate(sorted_queries, 1):
-        if qdata["count"] == 0:
-            _a(f"## {idx}. {qname} — 0 matchingů")
-            _a("")
-            continue
-
-        portals_str = ", ".join(qdata["portals"])
-        _a(f"## {idx}. {qname} — {qdata['count']} matchingů")
-        _a("")
-        _a(f"Portály: {portals_str}")
-        _a("")
-
-        sample = qdata["sample"]
-        for si, ad in enumerate(sample, 1):
-            title = ad.get("title", "Inzerát")
-            url = ad.get("url", "")
-            if url:
-                _a(f"{si}. **[{title}]({url})**")
-            else:
-                _a(f"{si}. **{title}**")
-
-            meta_parts = []
-            if ad.get("salary"):
-                meta_parts.append(f"{ad['salary']}")
-            if ad.get("company"):
-                meta_parts.append(ad["company"])
-            if ad.get("location"):
-                meta_parts.append(ad["location"])
-            if ad.get("portal"):
-                meta_parts.append(f"({ad['portal']})")
-            if meta_parts:
-                _a(f"   — {' | '.join(meta_parts)}")
-
-        _a("")
-
-        # Show count note if there are more ads beyond the sample
-        if qdata["count"] > 5:
-            _a(f"> +{qdata['count'] - 5} dalších inzerátů (celkem {qdata['count']})")
-            _a("")
+    report = render_report(ads_by_query, meta)
 
     md_path = OUTPUT_DIR / f"etl_{ts}.md"
-    md_path.write_text("\n".join(lines), encoding="utf-8")
+    md_path.write_text(report.markdown, encoding="utf-8")
+    html_path = OUTPUT_DIR / f"etl_{ts}.html"
+    html_path.write_text(report.html, encoding="utf-8")
 
     # Update latest per-profile
     latest_md = OUTPUT_DIR / f"etl_latest_{profile_tag}.md"
-    latest_md.write_text("\n".join(lines), encoding="utf-8")
+    latest_md.write_text(report.markdown, encoding="utf-8")
+    latest_html = OUTPUT_DIR / f"etl_latest_{profile_tag}.html"
+    latest_html.write_text(report.html, encoding="utf-8")
 
     return md_path
 
@@ -203,6 +184,7 @@ def main() -> None:
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "elapsed_seconds": round(elapsed, 1),
         "total_matched": total_ads,
+        "total_raw": sum(pool_sizes.values()),
         "profile": config.profile,
         "config_file": args.config,
         "config": {
