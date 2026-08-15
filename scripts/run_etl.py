@@ -215,6 +215,21 @@ def main() -> None:
     )
     if md_path:
         print(f"Report: {md_path}", file=sys.stderr)
+    # Faze 1: PostgreSQL persistence (graceful — DB disabled/failed = skip)
+    try:
+        from mcp_jobs.db import persist_run
+
+        run_id = persist_run(
+            results,
+            profile=config.profile,
+            matched=total_ads,
+            raw=sum(pool_sizes.values()),
+            elapsed_seconds=elapsed,
+        )
+        if run_id:
+            print(f"DB: run {run_id} persisted", file=sys.stderr)
+    except Exception as e:
+        print(f"Warning: DB persistence skipped: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":

@@ -29,5 +29,7 @@ credentials*
 !README.md
 
 # Scraped data — raw HTML + results JSON from live tests
-data/
+data/*
+!data/schema.sql
 output/
+src/data/

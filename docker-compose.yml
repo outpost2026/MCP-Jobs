@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: mcp-jobs-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mcpjobs
+      POSTGRES_PASSWORD: mcpjobs
+      POSTGRES_DB: mcpjobs
+    ports:
+      - "5432:5432"
+    volumes:
+      - mcp_jobs_pgdata:/var/lib/postgresql/data
+      - ./data/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcpjobs -d mcpjobs"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  mcp_jobs_pgdata:
