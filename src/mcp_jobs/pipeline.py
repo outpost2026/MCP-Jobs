@@ -11,7 +11,6 @@ from .config import PortalConfig, UserConfig
 from .matcher import has_exclude_terms, matches_ad
 from .models import Ad
 from .providers import REGISTRY
-from .providers.base import BaseScraper
 
 logger = logging.getLogger(__name__)
 

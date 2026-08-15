@@ -4,7 +4,6 @@ import functools
 import logging
 import re
 import unicodedata
-from typing import Optional
 
 from .models import Ad
 
