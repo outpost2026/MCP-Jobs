@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
+from typing import ClassVar
 from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup
@@ -19,12 +19,12 @@ class PraceczScraper(BaseScraper):
 
     # Potvrzeno dev console (2026-07-31): popis v CSS-module div
     # s hashed class, ale prefix 'RichContent' je stabilní.
-    _DETAIL_BODY_SELECTORS = [
+    _DETAIL_BODY_SELECTORS: ClassVar[list[str]] = [
         '[class*="RichContent"]',
         "div.RichContent",
     ]
 
-    def fetch_detail(self, ad: Ad) -> Optional[str]:
+    def fetch_detail(self, ad: Ad) -> str | None:
         if not ad.url:
             return None
         return self._fetch_detail_text(ad.url, self._DETAIL_BODY_SELECTORS)
@@ -60,7 +60,7 @@ class PraceczScraper(BaseScraper):
             if new == 0:
                 break
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         for ad in all_ads:
             ad.portal = self.name
             ad.scraped_at = now
@@ -107,7 +107,7 @@ class PraceczScraper(BaseScraper):
                     salary = salary_el.get_text(strip=True)
 
                 # DEV NOTE: prace.cz merge salary+date v jednom stringu
-                # "Plat:50 000 – 70 000 Kč/měsícJen pár hodin"
+                # "Plat:50 000 - 70 000 Kč/měsícJen pár hodin"
                 # Oddělujeme podle known date patterns
                 date = ""
                 if salary:
@@ -131,10 +131,10 @@ class PraceczScraper(BaseScraper):
                     title=title,
                     url=url,
                     portal=self.name,
-                    company=company if company else None,
-                    location=location if location else None,
-                    salary=salary if salary else None,
-                    date=date if date else None,
+                    company=company or None,
+                    location=location or None,
+                    salary=salary or None,
+                    date=date or None,
                     matched_keyword=query,
                 )
                 ads.append(ad)

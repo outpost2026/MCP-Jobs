@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Optional
+from typing import ClassVar
 
 import requests
 from bs4 import BeautifulSoup
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class HttpClient:
-    DEFAULT_HEADERS = {
+    DEFAULT_HEADERS: ClassVar[dict[str, str]] = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -25,7 +25,7 @@ class HttpClient:
 
     def __init__(
         self,
-        headers: Optional[dict] = None,
+        headers: dict | None = None,
         timeout: int = 30,
         retries: int = 3,
         backoff_factor: float = 0.5,
@@ -53,9 +53,7 @@ class HttpClient:
             time.sleep(self.request_delay - elapsed)
         self._last_request = time.time()
 
-    def get_soup(
-        self, url: str, parser: str = "html.parser"
-    ) -> Optional[BeautifulSoup]:
+    def get_soup(self, url: str, parser: str = "html.parser") -> BeautifulSoup | None:
         try:
             self._throttle()
             resp = self.session.get(url, timeout=self.timeout)
@@ -66,7 +64,7 @@ class HttpClient:
             logger.warning("GET %s failed: %s", url, e)
             return None
 
-    def get_text(self, url: str) -> Optional[str]:
+    def get_text(self, url: str) -> str | None:
         try:
             self._throttle()
             resp = self.session.get(url, timeout=self.timeout)

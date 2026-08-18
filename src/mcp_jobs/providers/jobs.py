@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
+from typing import ClassVar
 from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup
@@ -18,13 +18,13 @@ class JobsScraper(BaseScraper):
 
     # Potvrzeno dev console (2026-07-31): detail stránka je server-rendered,
     # popis inzerátu v <div data-test="jd-body-richtext"> (alias data-jobad="body").
-    _DETAIL_BODY_SELECTORS = [
+    _DETAIL_BODY_SELECTORS: ClassVar[list[str]] = [
         '[data-test="jd-body-richtext"]',
         '[data-jobad="body"]',
         "div.RichContent",
     ]
 
-    def fetch_detail(self, ad: Ad) -> Optional[str]:
+    def fetch_detail(self, ad: Ad) -> str | None:
         if not ad.url:
             return None
         return self._fetch_detail_text(ad.url, self._DETAIL_BODY_SELECTORS)
@@ -60,7 +60,7 @@ class JobsScraper(BaseScraper):
             if new == 0:
                 break
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         for ad in all_ads:
             ad.portal = self.name
             ad.scraped_at = now
@@ -124,10 +124,10 @@ class JobsScraper(BaseScraper):
                     title=title,
                     url=url,
                     portal=self.name,
-                    company=company if company else None,
-                    location=location if location else None,
-                    salary=salary if salary else None,
-                    date=date if date else None,
+                    company=company or None,
+                    location=location or None,
+                    salary=salary or None,
+                    date=date or None,
                     matched_keyword=query,
                 )
                 ads.append(ad)

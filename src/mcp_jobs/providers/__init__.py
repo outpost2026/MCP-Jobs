@@ -11,8 +11,8 @@ REGISTRY: dict[str, type] = {
 ACTIVE_PORTALS: dict[str, type] = dict(REGISTRY)
 
 __all__ = [
-    "REGISTRY",
     "ACTIVE_PORTALS",
+    "REGISTRY",
     "BazosScraper",
     "JobsScraper",
     "PraceczScraper",

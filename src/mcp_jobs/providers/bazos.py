@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from urllib.parse import quote_plus, urlencode
 
 from bs4 import BeautifulSoup
@@ -29,7 +28,7 @@ class BazosScraper(BaseScraper):
     def name(self) -> str:
         return "bazos"
 
-    def fetch_detail(self, ad: Ad) -> Optional[str]:
+    def fetch_detail(self, ad: Ad) -> str | None:
         """Fetch bazos detail page for company/seller info.
 
         Bazos neni pracovni portal — company info neni v listing page.
@@ -128,7 +127,7 @@ class BazosScraper(BaseScraper):
             if new == 0:
                 break
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         for ad in all_ads:
             ad.portal = self.name
             ad.scraped_at = now

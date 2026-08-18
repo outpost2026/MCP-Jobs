@@ -14,7 +14,7 @@ import argparse
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import requests
@@ -39,7 +39,7 @@ def _load_env(path: Path) -> None:
 def _log_local(status: str, detail: str) -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     with LOG_PATH.open("a", encoding="utf-8") as f:
-        f.write(f"{datetime.now().isoformat()} | {status} | {detail}\n")
+        f.write(f"{datetime.now(UTC).isoformat()} | {status} | {detail}\n")
 
 
 def main() -> None:

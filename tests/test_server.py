@@ -31,6 +31,7 @@ def test_server_instance():
     assert "search_from_config" in tools
     assert "search_from_yaml" in tools
     assert "search_jobs_v2" in tools
+    assert "search_status" in tools
     assert "list_portals" in tools
 
     resources = mcp._resource_manager._resources
@@ -78,19 +79,37 @@ def test_search_from_config_not_found():
     from mcp_jobs.server import search_from_config
 
     result = search_from_config("/nonexistent/path/config.yaml")
-    assert isinstance(result, list)
-    assert len(result) == 1
-    assert "error" in result[0]
+    assert "error" in result
+    assert "Config file not found" in result["error"]
+
+
+def test_search_from_config_submits_job(tmp_path):
+    """Valid config path submits an async job and returns job_id immediately."""
+    from mcp_jobs.server import search_from_config
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        "queries:\n  test:\n    boolean: python\n    portals: [jobs]\n",
+        encoding="utf-8",
+    )
+    result = search_from_config(str(cfg))
+    assert "job_id" in result
+    assert result["status"] in ("pending", "running", "done")
+
+
+def test_search_status_unknown():
+    from mcp_jobs.server import search_status
+
+    result = search_status("deadbeef")
+    assert "error" in result
 
 
 def test_search_jobs_v2_unknown_portal():
     from mcp_jobs.server import search_jobs_v2
 
     result = search_jobs_v2("python", portal="nonexistent")
-    assert isinstance(result, list)
-    assert len(result) == 1
-    assert "error" in result[0]
-    assert "nonexistent" in result[0]["error"]
+    assert "error" in result
+    assert "nonexistent" in result["error"]
 
 
 # ── Prompts ──────────────────────────────────────────────────────────
@@ -219,9 +238,9 @@ def test_store_results_empty_list():
 
 
 def test_resource_uris_in_search_output():
-    """search_jobs_v2 with unknown portal should NOT have query_id."""
+    """search_jobs_v2 with unknown portal should NOT have job_id."""
     from mcp_jobs.server import search_jobs_v2
 
     result = search_jobs_v2("python", portal="nonexistent")
-    assert "query_id" not in result[0]
-    assert "resource_uri" not in result[0]
+    assert "job_id" not in result
+    assert "error" in result

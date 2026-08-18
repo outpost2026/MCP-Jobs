@@ -4,7 +4,6 @@ import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse
 
 from .config import PortalConfig, UserConfig
@@ -91,7 +90,7 @@ class SearchPipeline:
                         urls_needing_detail.add(ad.url)
 
         # ── Faze 2: Parallel detail fetch (per-portal throttle) ────
-        detail_cache: dict[str, Optional[str]] = {}
+        detail_cache: dict[str, str | None] = {}
         if urls_needing_detail:
             self._fetch_details_parallel(urls_needing_detail, pool, detail_cache)
 
@@ -130,7 +129,7 @@ class SearchPipeline:
         self,
         urls: set[str],
         pool: list[Ad],
-        detail_cache: dict[str, Optional[str]],
+        detail_cache: dict[str, str | None],
     ) -> None:
         """Paralelni detail fetch — seskupeny per-portal.
 
@@ -150,7 +149,7 @@ class SearchPipeline:
         for url, portal in url_portal.items():
             by_portal.setdefault(portal, []).append(url)
 
-        def _fetch_one(url: str, portal_name: str) -> tuple[str, Optional[str]]:
+        def _fetch_one(url: str, portal_name: str) -> tuple[str, str | None]:
             provider_cls = REGISTRY.get(portal_name)
             if not provider_cls:
                 return url, None
@@ -177,7 +176,7 @@ class SearchPipeline:
             for portal_name, portal_urls in by_portal.items():
                 for url in portal_urls:
                     url, detail = _fetch_one(url, portal_name)
-                    detail_cache[url] = detail if detail else _FAILED
+                    detail_cache[url] = detail or _FAILED
         else:
             logger.info(
                 f"Fetching details for {len(urls)} URLs across {len(by_portal)} portals "
@@ -192,7 +191,7 @@ class SearchPipeline:
                 for fut in as_completed(futures):
                     try:
                         url, detail = fut.result()
-                        detail_cache[url] = detail if detail else _FAILED
+                        detail_cache[url] = detail or _FAILED
                     except Exception as e:
                         url = futures[fut]
                         logger.warning("detail fetch future failed for %s: %s", url, e)
@@ -200,7 +199,7 @@ class SearchPipeline:
 
     def _scrape_one(
         self, portal_name: str, pconf: PortalConfig
-    ) -> tuple[str, list[Ad], Optional[dict]]:
+    ) -> tuple[str, list[Ad], dict | None]:
         """Scrape JEDNOHO portalu (bezi v samostatnem vlakne).
 
         Kazdy portal ma vlastni provider instanci + vlastni HttpClient

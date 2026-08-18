@@ -5,8 +5,7 @@ import time
 import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from ..http import HttpClient
 from ..models import Ad
@@ -52,11 +51,11 @@ class ScraperRunStats:
 
 
 class BaseScraper(ABC):
-    def __init__(self, http_client: Optional[HttpClient] = None):
+    def __init__(self, http_client: HttpClient | None = None):
         self.http = http_client or HttpClient()
         self.stats = ScraperRunStats(portal=self.name)
 
-    def _fetch_page(self, url: str) -> Optional[str]:
+    def _fetch_page(self, url: str) -> str | None:
         # THREAD-SAFE: Kazde vlaskno ma vlastni provider + HttpClient instanci
         # (pipeline._scrape_one). Stats NENI sdilen mezi vlakny.
         start = time.perf_counter()
@@ -74,7 +73,7 @@ class BaseScraper(ABC):
     def _track_field_failure(self, field: str) -> None:
         self.stats.field_failures[field] = self.stats.field_failures.get(field, 0) + 1
 
-    def fetch_detail(self, ad: Ad) -> Optional[str]:
+    def fetch_detail(self, ad: Ad) -> str | None:
         """Fetch full ad detail page and extract body text (description).
 
         Implemented by providers whose detail pages are server-rendered
@@ -84,7 +83,7 @@ class BaseScraper(ABC):
             f"{type(self).__name__} does not implement fetch_detail"
         )
 
-    def _fetch_detail_text(self, url: str, selectors: list[str]) -> Optional[str]:
+    def _fetch_detail_text(self, url: str, selectors: list[str]) -> str | None:
         """Shared helper: GET detail URL, first matching selector's text."""
         text = self._fetch_page(url)
         if not text:
@@ -143,5 +142,5 @@ class BaseScraper(ABC):
         ads = self.parse_listings(text, query)
         for ad in ads:
             ad.portal = self.name
-            ad.scraped_at = datetime.now(timezone.utc).isoformat()
+            ad.scraped_at = datetime.now(UTC).isoformat()
         return ads[:max_results]

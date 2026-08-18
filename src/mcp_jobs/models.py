@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
+from typing import ClassVar
 
 from .utils import strip_emoji
 
@@ -12,19 +12,17 @@ class Ad:
     title: str
     url: str
     portal: str
-    date: Optional[str] = None
-    company: Optional[str] = None
-    location: Optional[str] = None
-    salary: Optional[str] = None
-    price: Optional[str] = None
-    description: Optional[str] = None
-    category_name: Optional[str] = None
+    date: str | None = None
+    company: str | None = None
+    location: str | None = None
+    salary: str | None = None
+    price: str | None = None
+    description: str | None = None
+    category_name: str | None = None
     matched_keyword: str = ""
-    scraped_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    scraped_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
-    OPTIONAL_FIELDS = {
+    OPTIONAL_FIELDS: ClassVar[set[str]] = {
         "date",
         "company",
         "location",

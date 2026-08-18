@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import uuid
-from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -77,7 +79,7 @@ def _store_results(results_data: list[dict]) -> str:
     query_id = uuid.uuid4().hex[:8]
     _query_store[query_id] = {
         "data": results_data,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "type": "search_results",
     }
     # Keep max N entries, drop oldest
@@ -91,6 +93,73 @@ def _store_results(results_data: list[dict]) -> str:
 
 # Load persisted store on module init
 _load_query_store()
+
+
+# ── Background job runner (P13: async submit + poll) ─────────────
+# I/O-heavy tooly (search_from_config / search_from_yaml /
+# search_jobs_v2) běží na pozadí — každý MCP request se vrátí
+# okamžitě a klient polluje search_status(job_id). Bez toho pipeline
+# (34-45 s) překročí timeout MCP klienta (MCP error -32001).
+
+_JOB_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="mcpjobs")
+_JOB_STORE: dict[str, dict] = {}
+_JOB_LOCK = threading.Lock()
+
+
+def _submit_job(source: str, runner) -> dict:
+    job_id = uuid.uuid4().hex[:8]
+    now = datetime.now(UTC).isoformat()
+    with _JOB_LOCK:
+        _JOB_STORE[job_id] = {
+            "job_id": job_id,
+            "source": source,
+            "status": "pending",
+            "submitted_at": now,
+            "started_at": None,
+            "finished_at": None,
+            "result": None,
+            "error": None,
+        }
+    _JOB_EXECUTOR.submit(_run_job, job_id, runner)
+    return _JOB_STORE[job_id]
+
+
+def _run_job(job_id: str, runner) -> None:
+    with _JOB_LOCK:
+        if job_id not in _JOB_STORE:
+            return
+        _JOB_STORE[job_id]["status"] = "running"
+        _JOB_STORE[job_id]["started_at"] = datetime.now(UTC).isoformat()
+    try:
+        result = runner()
+    except Exception as e:
+        logger.exception("Background job %s failed", job_id)
+        with _JOB_LOCK:
+            if job_id in _JOB_STORE:
+                _JOB_STORE[job_id]["status"] = "error"
+                _JOB_STORE[job_id]["error"] = str(e)
+                _JOB_STORE[job_id]["finished_at"] = datetime.now(UTC).isoformat()
+        return
+    with _JOB_LOCK:
+        if job_id in _JOB_STORE:
+            _JOB_STORE[job_id]["status"] = "done"
+            _JOB_STORE[job_id]["result"] = result
+            _JOB_STORE[job_id]["finished_at"] = datetime.now(UTC).isoformat()
+
+
+def _job_view(job_id: str) -> dict | None:
+    with _JOB_LOCK:
+        job = _JOB_STORE.get(job_id)
+        if job is None:
+            return None
+        view = dict(job)
+    if view["started_at"]:
+        try:
+            start = datetime.fromisoformat(view["started_at"])
+            view["elapsed_s"] = round((datetime.now(UTC) - start).total_seconds(), 1)
+        except ValueError:
+            pass
+    return view
 
 
 PORTAL_ALIASES: dict[str, str] = {
@@ -151,20 +220,26 @@ def _run_pipeline(config: UserConfig) -> list[dict]:
     description=(
         "Run the full search pipeline from a YAML config file path. "
         "Category bulk scrape + boolean filter + location/salary filter. "
-        "Returns results per query defined in the config."
+        "ASYNC: starts the job in background and returns job_id immediately — "
+        "poll with search_status(job_id) for the result."
     )
 )
-def search_from_config(config_path: str) -> list[dict]:
+def search_from_config(config_path: str) -> dict:
     path = Path(config_path)
     if not path.exists():
-        return [{"error": f"Config file not found: {config_path}"}]
+        return {"error": f"Config file not found: {config_path}"}
 
     try:
         config = UserConfig.from_yaml(path)
     except Exception as e:
-        return [{"error": f"Config parse error: {e}"}]
+        return {"error": f"Config parse error: {e}"}
 
-    return _run_pipeline(config)
+    job = _submit_job(f"config:{config_path}", lambda: _run_pipeline(config))
+    return {
+        "job_id": job["job_id"],
+        "status": job["status"],
+        "message": "Pipeline runs in background. Poll search_status(job_id).",
+    }
 
 
 @mcp.tool(
@@ -172,16 +247,54 @@ def search_from_config(config_path: str) -> list[dict]:
         "Run the full search pipeline from inline YAML content (no file needed). "
         "Accepts the same YAML structure as config.yaml.example. "
         "Category bulk scrape + boolean filter + location/salary filter. "
-        "Returns results per query defined in the YAML."
+        "ASYNC: starts the job in background and returns job_id immediately — "
+        "poll with search_status(job_id) for the result."
     )
 )
-def search_from_yaml(yaml_content: str) -> list[dict]:
+def search_from_yaml(yaml_content: str) -> dict:
     try:
         config = UserConfig.from_yaml_string(yaml_content)
     except Exception as e:
-        return [{"error": f"YAML parse error: {e}"}]
+        return {"error": f"YAML parse error: {e}"}
 
-    return _run_pipeline(config)
+    job = _submit_job("yaml:<inline>", lambda: _run_pipeline(config))
+    return {
+        "job_id": job["job_id"],
+        "status": job["status"],
+        "message": "Pipeline runs in background. Poll search_status(job_id).",
+    }
+
+
+@mcp.tool(
+    description=(
+        "Check status of a background search job started by search_from_config, "
+        "search_from_yaml or search_jobs_v2. Returns job_id, status "
+        "(pending/running/done/error) and the full result when done."
+    )
+)
+def search_status(job_id: str) -> dict:
+    view = _job_view(job_id)
+    if view is None:
+        return {"error": f"Unknown job_id '{job_id}'. Start a search first."}
+
+    payload = {
+        "job_id": view["job_id"],
+        "status": view["status"],
+        "source": view["source"],
+        "submitted_at": view["submitted_at"],
+        "started_at": view["started_at"],
+        "finished_at": view["finished_at"],
+        "elapsed_s": view.get("elapsed_s"),
+    }
+    if view["status"] == "done":
+        payload["result"] = view["result"]
+    elif view["status"] == "error":
+        payload["error"] = view["error"]
+    elif view["status"] == "pending":
+        payload["message"] = "Queued, waiting for a free worker."
+    else:
+        payload["message"] = "Still running. Poll again in a few seconds."
+    return payload
 
 
 @mcp.tool(
@@ -189,25 +302,43 @@ def search_from_yaml(yaml_content: str) -> list[dict]:
         "Ad-hoc category bulk search across CZ job portals. "
         "Scrapes ALL listings from given category URLs and applies boolean filter locally. "
         "Supports AND/OR/NOT boolean syntax, e.g. 'python AND developer NOT senior'. "
-        "Use \\b word-boundary matching (cnc != elektrocnc)."
+        "Use \\b word-boundary matching (cnc != elektrocnc). "
+        "ASYNC: starts the job in background and returns job_id immediately — "
+        "poll with search_status(job_id) for the result."
     )
 )
 def search_jobs_v2(
     query: str,
     portal: str = "vše",
     pages: int = 3,
-) -> list[dict]:
+) -> dict:
     pages = max(1, min(pages, 50))
     portal_key = PORTAL_ALIASES.get(portal.lower().strip(), portal.lower().strip())
-    portals_to_search: list[str] = []
 
     if portal_key == "vše":
-        portals_to_search = list(ACTIVE_PORTALS.keys())
+        pass
     elif portal_key in ACTIVE_PORTALS:
-        portals_to_search = [portal_key]
+        pass
     else:
         available = ", ".join(ACTIVE_PORTALS.keys())
-        return [{"error": f"Unknown portal '{portal}'. Available: vše, {available}"}]
+        return {"error": f"Unknown portal '{portal}'. Available: vše, {available}"}
+
+    job = _submit_job(
+        f"v2:{query}@{portal_key}",
+        lambda: _search_jobs_v2_impl(query, portal_key, pages),
+    )
+    return {
+        "job_id": job["job_id"],
+        "status": job["status"],
+        "message": "Search runs in background. Poll search_status(job_id).",
+    }
+
+
+def _search_jobs_v2_impl(query: str, portal_key: str, pages: int) -> list[dict]:
+    if portal_key == "vše":
+        portals_to_search = list(ACTIVE_PORTALS.keys())
+    else:
+        portals_to_search = [portal_key]
 
     results: list[dict] = []
     errors: list[str] = []
@@ -238,7 +369,7 @@ def search_jobs_v2(
     output = [
         {
             "query": query,
-            "portal": portal,
+            "portal": portal_key,
             "total_found": len(results),
             "results": results,
         }
@@ -416,16 +547,16 @@ def search_expert(
         "### Usage",
         "",
         "**Option 1 — Quick search (ad-hoc):**",
-        'Use `search_jobs_v2` with `query="{}"`'.format(boolean_query),
+        f'Use `search_jobs_v2` with `query="{boolean_query}"`',
         "",
         "**Option 2 — Config file (full pipeline):**",
         "```yaml",
         "queries:",
         "  my_search:",
-        '    boolean: "{}"'.format(boolean_query),
-        "    locations: [{}]".format(loc_val),
-        "    min_salary: {}".format(min_salary if min_salary > 0 else 0),
-        "    exclude: [{}]".format(excl_val),
+        f'    boolean: "{boolean_query}"',
+        f"    locations: [{loc_val}]",
+        f"    min_salary: {max(0, min_salary)}",
+        f"    exclude: [{excl_val}]",
         "```",
         "",
         "### Boolean Syntax Reference",

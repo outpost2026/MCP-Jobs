@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .models import Ad
@@ -19,7 +19,7 @@ class CorrelationRecord:
     total_scraped: int
     errors: int = 0
     profile: str = "default"
-    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @property
     def hit_rate(self) -> float:
@@ -31,7 +31,7 @@ class CorrelationRecord:
 class Storage:
     @staticmethod
     def save_timestamped(data: list[dict], output_dir: Path) -> list[Path]:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         output_dir.mkdir(parents=True, exist_ok=True)
 
         json_path = output_dir / f"etl_{timestamp}.json"
@@ -71,7 +71,7 @@ class Storage:
         total_matched = total_raw
         precision = round((total_matched / total_raw) * 100, 1) if total_raw else 0.0
         meta = ReportMeta(
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             elapsed_seconds=0.0,
             total_matched=total_matched,
             total_raw=total_raw,

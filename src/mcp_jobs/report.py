@@ -16,8 +16,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime
-from typing import Optional
+from datetime import UTC, date, datetime
 
 from .models import Ad
 from .report_style import CSS
@@ -88,14 +87,15 @@ def _unique_ads(
 # ── Date parsing for priority flags ──────────────────────────────────
 
 
-def _parse_date(raw: Optional[str]) -> Optional[date]:
+def _parse_date(raw: str | None) -> date | None:
     if not raw:
         return None
     s = raw.strip()
     # ISO (jobs.cz style: 2026-08-14) and CZ (14.08.2026)
     for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%d. %m. %Y", "%Y/%m/%d"):
         try:
-            return datetime.strptime(s, fmt).date()
+            # DTZ007: formáty jsou date-only (bez času/tz) — tz se neaplikuje
+            return datetime.strptime(s, fmt).date()  # noqa: DTZ007
         except ValueError:
             continue
     m = re.search(r"(\d{4})-(\d{2})-(\d{2})", s)
@@ -174,7 +174,7 @@ def _render_markdown(
     ad_queries: dict[tuple[str, str, str, str], set[str]],
     meta: ReportMeta,
 ) -> str:
-    today = date.today()
+    today = datetime.now(UTC).date()
     lines: list[str] = []
     _a = lines.append
 
@@ -355,7 +355,7 @@ def _md_to_html(md: str) -> str:
             quotes = []
             while i < n and lines[i].strip().startswith(">"):
                 content = lines[i].strip()[1:].strip()
-                if content.startswith("📊 ") or content.startswith("+ plný"):
+                if content.startswith(("📊 ", "+ plný")):
                     quotes.append(f'<p class="footer">{_inline(content)}</p>')
                 else:
                     quotes.append(f"<p>{_inline(content)}</p>")
@@ -364,7 +364,7 @@ def _md_to_html(md: str) -> str:
             continue
 
         # Priority flags row (🔴 section item meta with ⚠️)
-        if s.startswith("⚠️") or s.startswith("⏱"):
+        if s.startswith(("⚠️", "⏱")):
             out.append(f'<p class="meta">{_inline(s)}</p>')
             i += 1
             continue
@@ -376,7 +376,7 @@ def _md_to_html(md: str) -> str:
             continue
 
         # Header meta line
-        if s.startswith("🧭") or s.startswith("📁"):
+        if s.startswith(("🧭", "📁")):
             out.append(f'<p class="meta">{_inline(s)}</p>')
             i += 1
             continue
