@@ -134,12 +134,17 @@ def persist_run(
     matched: int,
     raw: int,
     elapsed_seconds: float,
+    database_url: str | None = None,
 ) -> int | None:
-    """Full persistence entry point. Returns run_id or None if DB disabled/failed."""
+    """Full persistence entry point. Returns run_id or None if DB disabled/failed.
+
+    `database_url` overrides the env/.env DATABASE_URL (used by integration
+    tests to target the isolated *_test database — never the live one).
+    """
     global _db
     try:
         if _db is None:
-            _db = connect()
+            _db = connect(database_url)
         init_db(_db)
         run_id = start_run(_db, profile)
         total_new = 0

@@ -1,11 +1,17 @@
 """Integration tests for PostgreSQL persistence (Faze 1).
 
-Skipped automatically when DATABASE_URL is not set (local dev without DB,
-or CI without the postgres service). Run locally:
+ISOLATION (P73): these tests NEVER touch the live database. They connect to
+a dedicated test database derived from DATABASE_URL by appending `_test`
+(e.g. `mcpjobs` -> `mcpjobs_test`) and refuse (hard fail) to TRUNCATE any
+database whose name does not end with `_test`.
 
-    docker compose up -d
-    $env:DATABASE_URL = "postgres://mcpjobs:mcpjobs@localhost:5432/mcpjobs"
+Create the test DB once (docker):
+    docker exec mcp-jobs-postgres createdb -U mcpjobs mcpjobs_test
+
+Run locally:
     python -X utf8 -m pytest tests/test_db.py -v
+
+If DATABASE_URL is not resolvable the tests are skipped (CI without DB).
 """
 
 from __future__ import annotations
@@ -23,16 +29,41 @@ from mcp_jobs.db import (
 )
 from mcp_jobs.models import Ad
 
+_TEST_DB_SUFFIX = "_test"
+
+
+def _derive_test_db_url() -> str:
+    """Derive the isolated test DB URL from DATABASE_URL (mcpjobs -> mcpjobs_test)."""
+    url = get_database_url().rstrip("/")
+    if not url:
+        return ""
+    base, _, dbname = url.rpartition("/")
+    if not dbname:
+        return url
+    if dbname.endswith(_TEST_DB_SUFFIX):
+        return url
+    return f"{base}/{dbname}{_TEST_DB_SUFFIX}"
+
+
+TEST_DATABASE_URL = _derive_test_db_url()
+
 pytestmark = pytest.mark.skipif(
-    not get_database_url(),
+    not TEST_DATABASE_URL,
     reason="DATABASE_URL not resolvable — DB integration tests skipped",
 )
 
 
 @pytest.fixture()
 def conn():
-    c = connect()
+    c = connect(TEST_DATABASE_URL)
     init_db(c)
+    dbname = c.execute("SELECT current_database()").fetchone()[0]
+    if not dbname.endswith(_TEST_DB_SUFFIX):
+        c.close()
+        pytest.fail(
+            f"Refusing to run TRUNCATE against non-test DB: {dbname} "
+            f"(isolation P73 violated)"
+        )
     c.execute("TRUNCATE ads, pipeline_runs RESTART IDENTITY CASCADE")
     yield c
     c.close()
@@ -90,7 +121,12 @@ def test_persist_run_graceful_without_db(monkeypatch):
 def test_persist_run_creates_run_and_ads(conn):
     ads = [_ad("https://example.com/job/3"), _ad("https://example.com/job/4")]
     run_id = persist_run(
-        {"q1": ads}, "ai_native", matched=2, raw=50, elapsed_seconds=3.5
+        {"q1": ads},
+        "ai_native",
+        matched=2,
+        raw=50,
+        elapsed_seconds=3.5,
+        database_url=TEST_DATABASE_URL,
     )
     assert run_id is not None
     status = conn.execute(
