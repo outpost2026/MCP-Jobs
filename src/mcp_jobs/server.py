@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -184,12 +185,14 @@ def health_check() -> dict:
 
 
 def _run_pipeline(config: UserConfig) -> list[dict]:
+    _start = time.monotonic()
     try:
         pipeline = SearchPipeline(config)
         results, scraper_stats, pool_sizes = pipeline.run()
     except Exception as e:
         logger.exception("Pipeline error")
         return [{"error": f"Pipeline error: {e}"}]
+    elapsed = time.monotonic() - _start
 
     output = []
     for query_name, ads in results.items():
@@ -213,6 +216,23 @@ def _run_pipeline(config: UserConfig) -> list[dict]:
         Storage.save_timestamped(output, _OUTPUT_DIR)
     except Exception as e:
         logger.warning("Failed to persist output: %s", e)
+
+    # Faze 1: PostgreSQL persistence (graceful — DB disabled/failed = skip)
+    try:
+        from mcp_jobs.db import persist_run
+
+        total_ads = sum(len(ads) for ads in results.values())
+        run_id = persist_run(
+            results,
+            profile=config.profile,
+            matched=total_ads,
+            raw=sum(pool_sizes.values()),
+            elapsed_seconds=elapsed,
+        )
+        if run_id:
+            logger.info("DB: run %s persisted (profile=%s)", run_id, config.profile)
+    except Exception as e:
+        logger.warning("DB persistence skipped: %s", e)
     return output
 
 

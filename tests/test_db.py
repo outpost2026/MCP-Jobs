@@ -10,13 +10,12 @@ or CI without the postgres service). Run locally:
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 from mcp_jobs.db import (
     connect,
     finish_run,
+    get_database_url,
     init_db,
     persist_run,
     start_run,
@@ -25,8 +24,8 @@ from mcp_jobs.db import (
 from mcp_jobs.models import Ad
 
 pytestmark = pytest.mark.skipif(
-    not os.environ.get("DATABASE_URL"),
-    reason="DATABASE_URL not set — DB integration tests skipped",
+    not get_database_url(),
+    reason="DATABASE_URL not resolvable — DB integration tests skipped",
 )
 
 
