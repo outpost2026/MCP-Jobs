@@ -20,9 +20,25 @@ SCHEMA_PATH = Path("data") / "schema.sql"
 
 _db = None  # module-level cached connection (reuse across calls in one run)
 
+_ENV_PATH = Path(".env")
+
+
+def _load_env(path: Path = _ENV_PATH) -> None:
+    """Load .env into os.environ (setdefault, idempotent). Mirrors healthcheck.py."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
+
 
 def get_database_url() -> str:
-    """Return DATABASE_URL or '' (empty = DB disabled)."""
+    """Return DATABASE_URL or '' (empty = DB disabled). Loads .env if needed."""
+    if not os.environ.get("DATABASE_URL"):
+        _load_env()
     return os.environ.get("DATABASE_URL", "").strip()
 
 
