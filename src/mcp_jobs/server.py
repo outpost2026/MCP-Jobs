@@ -213,7 +213,7 @@ def _run_pipeline(config: UserConfig) -> list[dict]:
     output[0]["query_id"] = query_id
     output[0]["resource_uri"] = f"mcp-jobs://ads/{query_id}"
     try:
-        Storage.save_timestamped(output, _OUTPUT_DIR)
+        Storage.save_outputs(output, _OUTPUT_DIR, profile=config.profile)
     except Exception as e:
         logger.warning("Failed to persist output: %s", e)
 
@@ -403,7 +403,7 @@ def _search_jobs_v2_impl(query: str, portal_key: str, pages: int) -> list[dict]:
     output[0]["query_id"] = query_id
     output[0]["resource_uri"] = f"mcp-jobs://ads/{query_id}"
     try:
-        Storage.save_timestamped(output, _OUTPUT_DIR)
+        Storage.save_outputs(output, _OUTPUT_DIR)
     except Exception as e:
         logger.warning("Failed to persist output: %s", e)
     return output

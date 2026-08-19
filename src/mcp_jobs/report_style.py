@@ -50,6 +50,8 @@ blockquote {
 
 ol { margin: 3pt 0 3pt 16pt; padding: 0; }
 li { margin: 4pt 0; }
+/* Ad titles: base 10.5pt -> 13.65pt (+30%, 2026-08-19) */
+ol li strong { font-size: 13.65pt; color: #0b2e4f; }
 
 code { font-family: Consolas, monospace; font-size: 9pt; background: #f4f4f4; padding: 0 2pt; }
 

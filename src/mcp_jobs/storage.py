@@ -28,18 +28,66 @@ class CorrelationRecord:
         return round(self.total_found / self.total_scraped, 4)
 
 
+def profile_tag_from_profile(profile: str) -> str:
+    """Semantic file tag from a config profile.
+
+    'AI-NATIVE' -> 'AI_NATIVE', 'LEGACY-MANUAL' -> 'LEGACY_MANUAL', else 'DEFAULT'.
+    """
+    tag = profile.upper()
+    for ch in ("-", " ", "/", "\\", ":", "."):
+        tag = tag.replace(ch, "_")
+    tag = "_".join(p for p in tag.split("_") if p)
+    return tag or "DEFAULT"
+
+
 class Storage:
     @staticmethod
-    def save_timestamped(data: list[dict], output_dir: Path) -> list[Path]:
-        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    def save_outputs(
+        data: list[dict],
+        output_dir: Path,
+        profile: str = "default",
+        meta_overrides: dict | None = None,
+    ) -> list[Path]:
+        """Save run outputs (JSON + MD + HTML) with unified naming and dedup.
+
+        Single convention for both CLI and MCP:
+          etl_{PROFILE_TAG}_{ts}.{json,md,html}
+        No `etl_latest_*` copies (removed 2026-08-19).
+        HTML is always generated (derived from the unified renderer).
+
+        Dedup: if the *normalized* payload (volatile keys like query_id,
+        resource_uri, scraped_at stripped) matches the most recent run of
+        the same profile, nothing is written (returns []).
+
+        `meta_overrides` feeds the report header (timestamp, elapsed_seconds,
+        config_file, total_raw, portals, queries) for the CLI path.
+        """
+        ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+        profile_tag = profile_tag_from_profile(profile)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        json_path = output_dir / f"etl_{timestamp}.json"
+        json_text = json.dumps(data, ensure_ascii=False, indent=2)
+        norm_now = _normalize_json(data)
+
+        prev = _latest_run(output_dir, profile_tag)
+        if prev is not None:
+            try:
+                prev_norm = _normalize_json(
+                    json.loads(prev.read_text(encoding="utf-8"))
+                )
+                if prev_norm == norm_now:
+                    logger.info(
+                        "Dedup: output identical to %s — nothing written", prev.name
+                    )
+                    return []
+            except Exception as e:
+                logger.warning(
+                    "Dedup compare failed (%s) — writing anyway: %s", prev, e
+                )
+
+        json_path = output_dir / f"etl_{profile_tag}_{ts}.json"
         with json_path.open("w", encoding="utf-8", newline="") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        latest_json = output_dir / "etl_latest.json"
-        with latest_json.open("w", encoding="utf-8", newline="") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.write(json_text)
 
         # Build per-query ad mapping for the unified renderer
         ads_by_query: dict[str, list[Ad]] = {}
@@ -68,16 +116,16 @@ class Storage:
 
         from .report import ReportMeta, render_report
 
-        total_matched = total_raw
-        precision = round((total_matched / total_raw) * 100, 1) if total_raw else 0.0
+        ov = meta_overrides or {}
         meta = ReportMeta(
-            timestamp=datetime.now(UTC).isoformat(),
-            elapsed_seconds=0.0,
-            total_matched=total_matched,
-            total_raw=total_raw,
-            precision=precision,
-            profile="default",
-            json_link=f"etl_{timestamp}.json",
+            timestamp=ov.get("timestamp", datetime.now(UTC).isoformat()),
+            elapsed_seconds=ov.get("elapsed_seconds", 0.0),
+            total_matched=total_raw,
+            total_raw=ov.get("total_raw", total_raw),
+            precision=round((total_raw / total_raw) * 100, 1) if total_raw else 0.0,
+            profile=profile,
+            config_file=ov.get("config_file", ""),
+            json_link=json_path.name,
             portals=sorted(
                 {a.portal for ads in ads_by_query.values() for a in ads if a.portal}
             ),
@@ -85,21 +133,15 @@ class Storage:
         )
         report = render_report(ads_by_query, meta)
 
-        md_path = output_dir / f"etl_{timestamp}.md"
+        md_path = output_dir / f"etl_{profile_tag}_{ts}.md"
         with md_path.open("w", encoding="utf-8", newline="") as f:
             f.write(report.markdown)
-        latest_md = output_dir / "etl_latest.md"
-        with latest_md.open("w", encoding="utf-8", newline="") as f:
-            f.write(report.markdown)
 
-        html_path = output_dir / f"etl_{timestamp}.html"
+        html_path = output_dir / f"etl_{profile_tag}_{ts}.html"
         with html_path.open("w", encoding="utf-8", newline="") as f:
             f.write(report.html)
-        latest_html = output_dir / "etl_latest.html"
-        with latest_html.open("w", encoding="utf-8", newline="") as f:
-            f.write(report.html)
 
-        return [json_path, md_path]
+        return [json_path, md_path, html_path]
 
     @staticmethod
     def save_correlation(records: list[CorrelationRecord], path: Path) -> None:
@@ -130,3 +172,36 @@ class Storage:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8") as f:
             json.dump(existing, f, ensure_ascii=False, indent=2)
+
+
+def _latest_run(output_dir: Path, profile_tag: str) -> Path | None:
+    """Most recent saved JSON for a profile tag (name sort = chrono sort)."""
+    candidates = sorted(output_dir.glob(f"etl_{profile_tag}_*.json"))
+    return candidates[-1] if candidates else None
+
+
+_VOLATILE_KEYS = frozenset(
+    {
+        "query_id",
+        "resource_uri",
+        "scraped_at",
+        "elapsed_s",
+        "submitted_at",
+        "finished_at",
+    }
+)
+
+
+def _normalize_json(value):
+    """Recursively strip volatile per-run keys so dedup compares real content.
+
+    query_id/resource_uri differ every run (uuid), scraped_at records the
+    exact scrape time — all must be ignored for content-identity dedup.
+    """
+    if isinstance(value, dict):
+        return {
+            k: _normalize_json(v) for k, v in value.items() if k not in _VOLATILE_KEYS
+        }
+    if isinstance(value, list):
+        return [_normalize_json(v) for v in value]
+    return value
