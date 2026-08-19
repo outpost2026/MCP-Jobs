@@ -47,6 +47,8 @@ def test_encoding_direct() -> None:
         [sys.executable, "-X", "utf8", "-c", code],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env=env,
     )
     assert proc.returncode == 0, f"returncode={proc.returncode}, stderr={proc.stderr!r}"
@@ -86,6 +88,8 @@ def test_fstring_via_file() -> None:
             [sys.executable, "-X", "utf8", tmp_path],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
         assert proc.returncode == 0, (
@@ -115,6 +119,8 @@ def test_ensure_utf8_stdout_function() -> None:
         [sys.executable, "-c", code],  # bez -X utf8, ale s reconfigure
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env=env,
     )
     assert proc.returncode == 0, f"returncode={proc.returncode}, stderr={proc.stderr!r}"
@@ -149,6 +155,8 @@ def test_server_module_encoding() -> None:
             [sys.executable, "-X", "utf8", tmp_path],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             env=env,
             cwd=str(PROJECT_ROOT),
         )
