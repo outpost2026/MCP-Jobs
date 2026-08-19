@@ -1,6 +1,7 @@
 from mcp_jobs.models import Ad
 from mcp_jobs.providers import ACTIVE_PORTALS
 from mcp_jobs.providers.bazos import BazosScraper
+from mcp_jobs.providers.jenprace import JenpraceScraper
 from mcp_jobs.providers.jobs import JobsScraper
 from mcp_jobs.providers.pracecz import PraceczScraper
 
@@ -53,6 +54,31 @@ PRACECZ_HTML = """
         </ul>
     </div>
     <ul data-testid="search-results-item-highlights-part-one"><li>55000 Kč</li></ul>
+</article>
+"""
+
+JENPRACE_HTML = """
+<article id="miw6dj" data-cy="offer-slug-kuryr-v-praze" data-ii="1" class="item with-top with-reward">
+    <h2 class="h4">
+        <a class="container-link d-none d-md-inline-block"
+           href="https://www.jenprace.cz/nabidka/miw6dj/kuryr-v-praze-a-okoli"
+           data-cy="offer-link-label">
+            <span class="offer-link me-md-3">Kurýr v Praze a okolí</span>
+        </a>
+    </h2>
+    <span class="company fw-medium d-inline" data-cy="offer-ownership-company">
+        <span class="d-none d-sm-inline">DOFEK COMPANY s.r.o.<span class="separator mx-2 d-none d-sm-inline">|</span></span>
+        <span class="d-inline d-sm-none">DOFEK COMPANY&hellip;<span class="separator mx-2 d-none d-sm-inline">|</span></span>
+    </span>
+    <span class="locality fw-medium me-3 d-inline" data-cy="offer-locality">
+        <span class="d-none d-sm-inline">Praha</span>
+        <span class="d-inline d-sm-none">Praha</span>
+    </span>
+    <ul>
+        <li title="Mzda 50 000 - 90 000 Kc" class="offer-label rewardLabel text-nowrap"
+            data-cy="offer-label-reward">50 000 - 90 000 Kc</li>
+    </ul>
+    <div class="date-offer-list fs-small fw-medium" data-cy="offer-date-created">dnesni</div>
 </article>
 """
 
@@ -190,12 +216,116 @@ def test_pracecz_scrape_all_stops_on_empty():
     assert isinstance(ads, list)
 
 
+def test_jenprace_parse_listings():
+    scraper = JenpraceScraper()
+    ads = scraper.parse_listings(JENPRACE_HTML, "kuryr")
+    assert len(ads) == 1
+    assert ads[0].title == "Kurýr v Praze a okolí"
+    assert ads[0].url == "https://www.jenprace.cz/nabidka/miw6dj/kuryr-v-praze-a-okoli"
+    assert ads[0].company == "DOFEK COMPANY s.r.o."
+    assert ads[0].location == "Praha"
+    assert ads[0].salary == "50 000 - 90 000 Kc"
+    assert ads[0].date == "dnesni"
+    assert ads[0].matched_keyword == "kuryr"
+
+
+def test_jenprace_parse_listings_relative_url():
+    """Jenprace pouziva absolutni href v listing, ale relativni musi byt taky OK."""
+    html = JENPRACE_HTML.replace(
+        "https://www.jenprace.cz/nabidka/miw6dj/kuryr-v-praze-a-okoli",
+        "/nabidka/miw6dj/kuryr-v-praze-a-okoli",
+    )
+    scraper = JenpraceScraper()
+    ads = scraper.parse_listings(html, "kuryr")
+    assert ads[0].url == "https://www.jenprace.cz/nabidka/miw6dj/kuryr-v-praze-a-okoli"
+
+
+def test_jenprace_parse_listings_without_salary():
+    """Karta bez mzdy (without with-reward) — salary musi byt None."""
+    html = JENPRACE_HTML.replace(
+        '<li title="Mzda 50 000 - 90 000 Kc" class="offer-label rewardLabel text-nowrap"',
+        '<li title="Typ pracovniho uvazku - Plny uvazek" class="offer-label employmentLabel text-nowrap"',
+    ).replace(
+        'data-cy="offer-label-reward">50 000 - 90 000 Kc</li>',
+        'data-cy="offer-label-employment-1">Plný úvazek</li>',
+    )
+    scraper = JenpraceScraper()
+    ads = scraper.parse_listings(html, "kuryr")
+    assert len(ads) == 1
+    assert ads[0].salary is None
+
+
+def test_jenprace_empty_html():
+    scraper = JenpraceScraper()
+    ads = scraper.parse_listings("<html></html>", "kuryr")
+    assert ads == []
+
+
+def test_jenprace_broken_selector_logs(caplog):
+    """M4 fix: no cards found -> error log (layout change detection)."""
+    import logging
+
+    scraper = JenpraceScraper()
+    ads = scraper.parse_listings('<div class="totally-different">x</div>', "kuryr")
+    assert ads == []
+    assert any("0 cards" in r.message for r in caplog.records)
+    assert caplog.records[-1].levelno == logging.ERROR
+
+
+def test_jenprace_scrape_all_stops_on_empty():
+    scraper = JenpraceScraper()
+    ads = scraper.scrape_all("https://www.jenprace.cz/nabidky/praha/", max_pages=2)
+    assert isinstance(ads, list)
+
+
+def test_jenprace_fetch_detail_fills_company_and_location():
+    """fetch_detail doplni company/location z items-box gridu (vzor bazos)."""
+    detail_html = """
+    <div class="row items-box-cont mt-3 pb-5 gy-3">
+        <div class="col-md-6 d-flex align-items-start items-box-outer company-item">
+            <div class="fs-small headline" data-cy="company-label">Firma</div>
+            <div class="value" data-cy="company-value">
+                <a href="/firmy/dofek-company-s-r-o">DOFEK COMPANY s.r.o.</a>
+            </div>
+        </div>
+        <div class="col-md-6 d-flex align-items-start items-box-outer locality-detail-item">
+            <div class="fs-small headline" data-cy="locality-detail-label">Lokalita</div>
+            <div class="value" data-cy="locality-detail-value">
+                <a href="/nabidky/praha">Praha</a>
+                <a href="#map-frame" class="show-map-iframe fs-small fw-normal">Zobrazit na mapě</a>
+            </div>
+        </div>
+    </div>
+    <div class="container container-lg-max">
+        <div class="content">
+            <div class="offer-content">
+                <h2 data-cy="offer-about-us-title">O nás</h2>
+                <div data-cy="offer-about-us-value"><p>Rozvoz nákupů v Praze a okolí.</p></div>
+            </div>
+        </div>
+    </div>
+    """
+
+    class _DetailClient:
+        def get_text(self, url):
+            return detail_html
+
+    scraper = JenpraceScraper(http_client=_DetailClient())
+    ad = Ad(title="Kurýr", url="https://www.jenprace.cz/nabidka/x/y", portal="jenprace")
+    desc = scraper.fetch_detail(ad)
+    assert desc is not None
+    assert "Rozvoz" in desc
+    assert ad.company == "DOFEK COMPANY s.r.o."
+    assert ad.location == "Praha"
+
+
 def test_active_portals_excludes_nyx():
     assert "nyx" not in ACTIVE_PORTALS
     assert "bazos" in ACTIVE_PORTALS
     assert "jobs" in ACTIVE_PORTALS
     assert "pracecz" in ACTIVE_PORTALS
-    assert len(ACTIVE_PORTALS) == 3
+    assert "jenprace" in ACTIVE_PORTALS
+    assert len(ACTIVE_PORTALS) == 4
 
 
 def test_ad_to_dict():

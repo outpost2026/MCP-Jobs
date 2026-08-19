@@ -168,6 +168,7 @@ PORTAL_ALIASES: dict[str, str] = {
     "vse": "vše",
     "all": "vše",
     "bazos": "bazos",
+    "jenprace": "jenprace",
     "jobs": "jobs",
     "pracecz": "pracecz",
     "prace": "pracecz",
@@ -593,6 +594,7 @@ def search_expert(
 def _default_category(name: str) -> str:
     defaults = {
         "bazos": "https://prace.bazos.cz/",
+        "jenprace": "https://www.jenprace.cz/nabidky/praha/",
         "jobs": "https://www.jobs.cz/prace/praha/",
         "pracecz": "https://www.prace.cz/nabidky/",
     }
@@ -602,6 +604,7 @@ def _default_category(name: str) -> str:
 def _portal_description(name: str) -> str:
     descriptions = {
         "bazos": "General classifieds portal (jobs, services, goods)",
+        "jenprace": "Dedicated job portal (jenprace.cz network)",
         "jobs": "Dedicated job portal (jobs.cz network)",
         "pracecz": "Dedicated job portal (prace.cz network)",
     }

@@ -6,8 +6,8 @@
   "branch": "main",
   "remote": "https://github.com/outpost2026/MCP-Jobs.git",
   "last_session": {
-    "value": "Iteration 9 (2026-08-01): Phase 09 hotfix (de novo audit F1-F4 + F7/F8/F9/F18). F1 import CorrelationRecord do server.py (NameError fix, overeno zapisem correlation_cache), F2 pyyaml>=6.0 do runtime deps (pyproject + requirements), F3 matcher (?<!\\w)/(?!\\w) misto \\b — C++/C#/.net nyni matchnou (+7 assertu), F4 search_expert multi-word exclude -> NOT (hledam AND praci) (dokud bylo 'NOT a b' = parse error; +4 asserty), F7 EN L2 Resources Planned->implemented, F8 97->125 testu + verze tabulek v0.3.1->v0.4.0, F9 config query names (python_ai_engineer aj. dle config.yaml), F18 l2_resources.md perzistence. Test suite 125/125 PASS. Commit 45f70ad, pushnuto. NEXT: engineering-proces balik (uv+ruff+mypy+GH Actions+pre-commit+coverage 66% baseline+Dependabot), pak produktovy (SQLite FTS5, Dockerfile, SSRF allowlist, cap detail fetch, __main__.py+--smoke).",
-    "updated": "2026-08-01T10:35:00+00:00"
+    "value": "Iteration 10 (2026-08-19): kontextovy sběr + .ai_state resync. HEAD 0d87a3d (deleted redudant file), tree clean, 148 testu PASS lokalne (10.71s). Verifikace pending polozek: [RESOLVED] CI fix test DB mcpjobs_test (22b64de — create krok je v ci.yml), [RESOLVED] ruff determinism P72 (50f5684 — select E4/E7/E9/F+W/I/UP/RUF/PIE/FURB/DTZ v pyproject), [HOTOVO] Dependabot (.github/dependabot.yml). NEVYRESENO: uv+uv.lock, mypy strict, pre-commit, Dockerfile, SECURITY.md (SSRF uzavren v kodu SEC-001, ale dokument chybi), __main__.py+--smoke, SQLite/FTS5 (bezi PostgreSQL Faze1), _default_category jobs hardcoded Praha. Posledni funkcni balik: audit #3 3/3 (1481b3e) — SSRF uzavren, ruff cele repo ciste, pytest-cov prah 70%, nyx config blok rm + warning na neznamy portal, dual-write redundance, 148 testu (EROI 10/10).",
+    "updated": "2026-08-19T00:00:00+00:00"
   },
   "profiles": {
     "ai_native": {
@@ -21,16 +21,19 @@
       "note": "Fallback + srovnani se scrapers; korekce balik 1-5 aplikovan"
     }
   },
-"pending": [
-    "Engineering-proces (Phase 09): uv+uv.lock, ruff+mypy strict, GH Actions ci+release, pre-commit, coverage baseline 66%, Dependabot",
-    "Produktovy (Phase 09): SQLite/FTS5 persistent storage, Dockerfile non-root, SSRF URL allowlist + SECURITY.md threat model, cap lazy detail fetch (F5), __main__.py + --smoke",
-    "CI fix: test DB mcpjobs_test create v ci.yml (P73 izolace vyzaduje, CI service vytvari jen mcpjobs) — posledni 3 runs failed",
-    "P2: bazos fetch_detail — RESOLVED 2026-08-19: log limitu v pipeline.py + zminka v README (company jen z contact linku jmeno=); plna implementace odlozena",
-    "Post-public: Streamable HTTP + OAuth, PyPI trusted publishing, observability, hosted demo (Railway/Render)",
+  "pending": [
+    "Engineering-proces (Phase 09): uv+uv.lock, mypy strict, pre-commit — z puvodniho baliku zbyva; ruff determinism (P72) a Dependabot JIZ VYRESENO",
+    "Produktovy (Phase 09): SQLite/FTS5 persistent storage (zde PostgreSQL Faze1, SQLite je alternativa), Dockerfile non-root, SECURITY.md threat model (SSRF uzavren v kodu SEC-001, dokument chybi), cap lazy detail fetch (F5), __main__.py + --smoke",
     "P2: _default_category jobs hardcoded praha (m1, search_jobs_v2 vzdy Praha)",
+    "Post-public: Streamable HTTP + OAuth, PyPI trusted publishing, observability, hosted demo (Railway/Render)",
     "DEFERRED (2026-08-19): jina repa se prozatim neresi — aktivni je proces adopce/učení SQL domény (zejmena PostgreSQL). LinkedIn Analyzer integrace + sladit nemecko-blocklist mezi config a scrapers topics.csv odlozeno do doby po dokonceni SQL sekvence (SQL_ADOPCE_PLAN 2026-08-16)"
   ],
   "completed": [
+    "RESOLVED (2026-08-19): CI fix test DB mcpjobs_test — create krok v ci.yml (22b64de), posledni run zeleny",
+    "RESOLVED (2026-08-19): ruff lint determinism P72 — select sada v pyproject (50f5684), CI nespadne na upgrade ruff",
+    "HOTOVO (2026-08-19): Dependabot — .github/dependabot.yml",
+    "Audit #3 3/3 (2026-08-01, 1481b3e): SSRF uzavren (SEC-001 detail-fetch), ruff cele repo ciste (CI scope rozsiren), pytest-cov do CI (prah 70%), nyx config blok rm + warning na neznamy portal, dual-write dokumentovana redundance, 148 testu (EROI 10/10)",
+    "Produkce audit 2/2 (3a04e64): nyx removed (legacy dead code + testy), README CZ+EN 6 tools/0.5s delay/141 testu, .env.example pridan, run_livetests REGISTRY==3, stale etl_latest rm z output/, cross_llm prompt nyx line rm (EROI 10/10)",
     "Phase 09 hotfix (2026-08-01): F1-F4 + F7/F8/F9/F18, 125 testu PASS, commit 45f70ad pushnuto. KB artefakt: HOTFIX_09_2026-08-01.md",
     "Phase 08: cross-audit fix balik — 10 fixu (C1, C2, M1-M7, m3) aplikovano + 123 testu PASS + fresh ETL determinism check (26 matched/15 uniq bez regrese)",
     "FIX_BALIK_cross_audit_2026-07-31.md v B2B-Knowledge-Base/02_ANALYZY/05_mcp_jobs/",
@@ -52,6 +55,7 @@
     "Architektonicke srovnani MCP-Jobs vs scrapers -> B2B-Knowledge-Base/02_ANALYZY/05_mcp_jobs/srovnani_architektur_mcp_vs_scrapers_2026-07-31.md (ec1cc43)"
   ],
   "key_findings": {
+    "context_snapshot_2026-08-19": "HEAD 0d87a3d, tree clean, 148 testu PASS (10.71s). Config: config.yaml (AI-native, 8 queries) + config_legacy_manual.yaml fallback; config_pracecz_jobs.yaml smazan (49cccf8, duplicitni hybrid). CI: ubuntu + Python 3.11/3.12 matrix + postgres:16 service + create mcpjobs_test krok + ruff check . + pytest-cov --cov-fail-under=70. Verze 0.4.0. SSRF uzavren v kodu (SEC-001); SECURITY.md stale chybi.",
     "comparison_2026-07-31": "MCP-AI 15 uniq/99.9s, MCP-LEG 48 uniq/116.6s, scrapers-fresh 21 uniq. Pruniky: MCP-AI n scrapers-fresh = 1/15 (7%), MCP-LEG n scrapers-fresh = 7/48 (15%). Scrapers MAJI vetsi prosivani (168 uniq cumulative), ale jen 21 fresh. Doporuceni: ponechat obe architektury.",
     "cross_audit_2026-07-31": "Jadro robustni (boolean AST, NFKD, 103 testu PASS, rate limiting) — nadprumer vs konkurence. Slabiny v tiche odolnosti: silent errors (http/storage), ticha ztrata dat (dedup), ticha 0 shod (malformed boolean). Public delivery readiness: NE (chybi CI/CD, coverage, dev extra, guardrails test rename, README stale). Vyvracena hypoteza: fastmcp dep mismatch.",
     "grok_audit_2026-07-31": "Konvergentni s v1 (C1, C2, M1, M2, M3, M4-pyproject, README, guardrails, M7 dead-import + location). Navic: base.py:97 silent except (platny), SSRF (m6, nizka priorita), bazos fetch_detail NIT (m7). CHYBNE: container guard prohlasen za 'castecne opraveno' — guard existuje, ale nechrani rozbity selektor (cards=[] -> ticho). Fix aplikovan ve Phase 08.",
@@ -62,5 +66,5 @@
     "B2B-Knowledge-Base": "pitevni knihy, KB write target, analyzy, cross-audit artefakty",
     "scrapers": "paralelni legacy pipeline (4 scrapery + Master_Prace_Index); topics.csv = zdroj nemecko-blocklistu"
   },
-  "next_phase": "Phase 09 — Public delivery: CI/CD (ruff/mypy/coverage), README sync, coverage report, security threat model"
+  "next_phase": "Phase 09 — Public delivery: doresit engineering balik (uv+uv.lock, mypy, pre-commit), Dockerfile non-root, SECURITY.md threat model, __main__.py+--smoke; pokracovat SQL adopce sekvenci (postgresql_zakladni_prikazy v2.0, 448f336)."
 }

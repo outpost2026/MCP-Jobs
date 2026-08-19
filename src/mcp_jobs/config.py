@@ -61,7 +61,7 @@ class PipelineSettings:
     max_workers: int = 0
     request_delay: float = 0.5
     url_allowlist: list[str] = field(
-        default_factory=lambda: ["bazos.cz", "jobs.cz", "prace.cz"]
+        default_factory=lambda: ["bazos.cz", "jobs.cz", "prace.cz", "jenprace.cz"]
     )
 
     def __post_init__(self) -> None:

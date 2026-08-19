@@ -49,7 +49,8 @@ def test_active_portals_no_nyx():
     assert "bazos" in ACTIVE_PORTALS
     assert "jobs" in ACTIVE_PORTALS
     assert "pracecz" in ACTIVE_PORTALS
-    assert len(ACTIVE_PORTALS) == 3
+    assert "jenprace" in ACTIVE_PORTALS
+    assert len(ACTIVE_PORTALS) == 4
 
 
 def test_portal_aliases():
@@ -57,6 +58,7 @@ def test_portal_aliases():
     assert PORTAL_ALIASES["vse"] == "vše"
     assert PORTAL_ALIASES["all"] == "vše"
     assert PORTAL_ALIASES["bazos"] == "bazos"
+    assert PORTAL_ALIASES["jenprace"] == "jenprace"
     assert PORTAL_ALIASES["jobs"] == "jobs"
     assert PORTAL_ALIASES["pracecz"] == "pracecz"
     assert PORTAL_ALIASES["prace"] == "pracecz"
@@ -65,9 +67,10 @@ def test_portal_aliases():
 
 def test_list_portals():
     portals = list_portals()
-    assert len(portals) == 3
+    assert len(portals) == 4
     names = [p["name"] for p in portals]
     assert "bazos" in names
+    assert "jenprace" in names
     assert "jobs" in names
     assert "pracecz" in names
     for p in portals:

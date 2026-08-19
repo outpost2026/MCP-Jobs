@@ -38,6 +38,14 @@ portals:
       - url: "https://www.prace.cz/nabidky/hlavni-mesto-praha/praha/"
         pages: 25
 
+  jenprace:
+    enabled: true
+    categories:
+      - url: "https://www.jenprace.cz/nabidky/praha/"
+        pages: 10
+      - url: "https://www.jenprace.cz/brigady/praha/"
+        pages: 5
+
 # ── Společný exclude pool (odfiltruje nabídky služeb / osobní inzeráty) ──
 _x_exclude: &_x_exclude
   - agentura
@@ -102,14 +110,14 @@ queries:
     exclude: *_x_exclude
     min_salary: 0
     locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
-    portals: ["jobs", "pracecz", "bazos"]
+    portals: ["jobs", "pracecz", "bazos", "jenprace"]
 
   cnc_cam_automation:
     boolean: "(cnc OR frezar OR frezarka OR frezovani OR (cam AND software) OR obrabecich OR obrabecim OR sprutcam OR mastercam OR postprocesing OR serizovac OR nastavovac) AND (programovani OR programator OR automatizace OR software OR obrabeni OR nastaveni OR serizovani OR serizovac OR sprutcam OR mastercam OR postprocesing) NOT (obsluha OR operator OR uklid OR stavebni OR montaz)"
     exclude: *_x_exclude
     min_salary: 0
     locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
-    portals: ["pracecz", "bazos"]
+    portals: ["pracecz", "bazos", "jenprace"]
 
   reverse_engineering:
     boolean: "(reverse AND (engineering OR engineer OR inzenyr)) OR (scraping OR scraper OR dataminer OR (data AND mining)) OR (decompil OR disassembl) OR (firmware AND analysis) OR (malware AND (analyst OR analysis OR research)) OR (vulnerability AND (research OR analysis OR researcher)) OR (exploit AND (development OR developer)) OR (ghidra OR radare2 OR (ida AND pro)) OR (threat AND (research OR intelligence)) OR (kernel AND (research OR security)) OR (antivirus AND (research OR analyst)) NOT (kurz OR skoleni OR lektor OR uklid)"
