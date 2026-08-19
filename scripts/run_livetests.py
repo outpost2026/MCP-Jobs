@@ -4,6 +4,7 @@ Usage:
   python scripts/run_livetests.py          # full suite
   python scripts/run_livetests.py --quick   # 1 page per portal only
 """
+
 from __future__ import annotations
 
 import json
@@ -100,10 +101,17 @@ for portal_name in ("jobs", "bazos", "pracecz"):
             elif "message" in r[0]:
                 log(f"{portal_name}: 0 results", r[0]["message"])
             elif "total_found" in r[0]:
-                check(f"{portal_name} OK", r[0]["total_found"] >= 0, f"total={r[0]['total_found']}")
+                check(
+                    f"{portal_name} OK",
+                    r[0]["total_found"] >= 0,
+                    f"total={r[0]['total_found']}",
+                )
                 if r[0]["total_found"] > 0:
                     for ad in r[0]["results"][:3]:
-                        log(f"  result: {ad['title']}", f"company={ad.get('company','?')}")
+                        log(
+                            f"  result: {ad['title']}",
+                            f"company={ad.get('company', '?')}",
+                        )
     except Exception as e:
         log(f"{portal_name} exception", error=f"{type(e).__name__}: {e}")
 
@@ -117,7 +125,11 @@ try:
         elif "message" in r_all[0]:
             log("all: no results", r_all[0]["message"])
         elif "total_found" in r_all[0]:
-            check("all OK", r_all[0]["total_found"] >= 0, f"total={r_all[0]['total_found']}")
+            check(
+                "all OK",
+                r_all[0]["total_found"] >= 0,
+                f"total={r_all[0]['total_found']}",
+            )
 except Exception as e:
     log("all exception", error=f"{type(e).__name__}: {e}")
 
@@ -126,30 +138,79 @@ PHASE = "03-BOOLEAN-MATCHER"
 log("Testing boolean matcher")
 
 # Diacritics
-check("diacritics: programator -> Programátor",
-      matches_ad(Ad(title="Programátor Python", url="http://x", portal="jobs"), "programator"))
-check("diacritics reverse: programátor -> Programator",
-      matches_ad(Ad(title="Programator", url="http://x", portal="jobs"), "programátor"))
-check("diacritics: vyvojar -> Vývojář",
-      matches_ad(Ad(title="Vývojář Java", url="http://x", portal="jobs"), "vyvojar"))
+check(
+    "diacritics: programator -> Programátor",
+    matches_ad(
+        Ad(title="Programátor Python", url="http://x", portal="jobs"), "programator"
+    ),
+)
+check(
+    "diacritics reverse: programátor -> Programator",
+    matches_ad(Ad(title="Programator", url="http://x", portal="jobs"), "programátor"),
+)
+check(
+    "diacritics: vyvojar -> Vývojář",
+    matches_ad(Ad(title="Vývojář Java", url="http://x", portal="jobs"), "vyvojar"),
+)
 
 # Word boundaries preserved with diacritics
-check("wb: cnc vs elektrocnc",
-      not matches_ad(Ad(title="ElektroCNC", url="http://x", portal="jobs"), "cnc"))
-check("wb: nara vs naradi",
-      not matches_ad(Ad(title="Nářadí", url="http://x", portal="jobs"), "nara"))
+check(
+    "wb: cnc vs elektrocnc",
+    not matches_ad(Ad(title="ElektroCNC", url="http://x", portal="jobs"), "cnc"),
+)
+check(
+    "wb: nara vs naradi",
+    not matches_ad(Ad(title="Nářadí", url="http://x", portal="jobs"), "nara"),
+)
 
 # Boolean logic
-check("AND", matches_ad(Ad(title="Python Developer", url="http://x", portal="jobs"), "python AND developer"))
-check("AND fail", not matches_ad(Ad(title="Python Tester", url="http://x", portal="jobs"), "python AND developer"))
-check("OR", matches_ad(Ad(title="Java Dev", url="http://x", portal="jobs"), "python OR java"))
-check("NOT", not matches_ad(Ad(title="Python Junior", url="http://x", portal="jobs"), "python NOT junior"))
-check("NOT pass", matches_ad(Ad(title="Python Senior", url="http://x", portal="jobs"), "python NOT junior"))
-check("parens", matches_ad(Ad(title="Java Developer", url="http://x", portal="jobs"), "(python OR java) AND developer"))
-check("empty query", matches_ad(Ad(title="Anything", url="http://x", portal="jobs"), ""))
+check(
+    "AND",
+    matches_ad(
+        Ad(title="Python Developer", url="http://x", portal="jobs"),
+        "python AND developer",
+    ),
+)
+check(
+    "AND fail",
+    not matches_ad(
+        Ad(title="Python Tester", url="http://x", portal="jobs"), "python AND developer"
+    ),
+)
+check(
+    "OR",
+    matches_ad(Ad(title="Java Dev", url="http://x", portal="jobs"), "python OR java"),
+)
+check(
+    "NOT",
+    not matches_ad(
+        Ad(title="Python Junior", url="http://x", portal="jobs"), "python NOT junior"
+    ),
+)
+check(
+    "NOT pass",
+    matches_ad(
+        Ad(title="Python Senior", url="http://x", portal="jobs"), "python NOT junior"
+    ),
+)
+check(
+    "parens",
+    matches_ad(
+        Ad(title="Java Developer", url="http://x", portal="jobs"),
+        "(python OR java) AND developer",
+    ),
+)
+check(
+    "empty query", matches_ad(Ad(title="Anything", url="http://x", portal="jobs"), "")
+)
 
 # strip_diacritics unit
-for inp, exp in [("programátor", "programator"), ("vývojář", "vyvojar"), ("řízení", "rizeni"), ("", "")]:
+for inp, exp in [
+    ("programátor", "programator"),
+    ("vývojář", "vyvojar"),
+    ("řízení", "rizeni"),
+    ("", ""),
+]:
     result = strip_diacritics(inp)
     check(f"strip_diacritics({inp!r}) == {exp!r}", result == exp, f"got {result!r}")
 
@@ -235,23 +296,33 @@ for label, inp in [("invalid yaml", ": broken :"), ("empty yaml", "")]:
 PHASE = "05-CONFIG-ERRORS"
 log("Testing config error handling")
 
-check("nonexistent config returns error",
-      isinstance(search_from_config("/nonexistent/path.yaml"), list) and
-      "error" in search_from_config("/nonexistent/path.yaml")[0])
+check(
+    "nonexistent config returns error",
+    isinstance(search_from_config("/nonexistent/path.yaml"), list)
+    and "error" in search_from_config("/nonexistent/path.yaml")[0],
+)
 
-check("unknown portal returns error",
-      isinstance(search_jobs_v2("python", portal="nonexistent"), list) and
-      "error" in search_jobs_v2("python", portal="nonexistent")[0])
+check(
+    "unknown portal returns error",
+    isinstance(search_jobs_v2("python", portal="nonexistent"), list)
+    and "error" in search_jobs_v2("python", portal="nonexistent")[0],
+)
 
 # ═══════════════════════════════════════════════════════
 PHASE = "06-ALIASES"
 log("Testing portal aliases")
 
 alias_tests: list[tuple[str, str]] = [
-    ("all", "vše"), ("vse", "vše"), ("VSE", "vše"),
-    ("bazos", "bazos"), ("BAZOS", "bazos"),
-    ("jobs", "jobs"), ("JOBS", "jobs"),
-    ("pracecz", "pracecz"), ("prace", "pracecz"), ("PRACE", "pracecz"),
+    ("all", "vše"),
+    ("vse", "vše"),
+    ("VSE", "vše"),
+    ("bazos", "bazos"),
+    ("BAZOS", "bazos"),
+    ("jobs", "jobs"),
+    ("JOBS", "jobs"),
+    ("pracecz", "pracecz"),
+    ("prace", "pracecz"),
+    ("PRACE", "pracecz"),
 ]
 for inp, exp in alias_tests:
     got = PORTAL_ALIASES.get(inp.lower().strip(), inp.lower().strip())
@@ -266,7 +337,11 @@ try:
     r_empty = search_jobs_v2("", portal="jobs", pages=1)
     check("empty query returns list", isinstance(r_empty, list))
     if isinstance(r_empty, list) and r_empty and "total_found" in r_empty[0]:
-        check("empty query matches all", r_empty[0]["total_found"] > 0, f"total={r_empty[0]['total_found']}")
+        check(
+            "empty query matches all",
+            r_empty[0]["total_found"] > 0,
+            f"total={r_empty[0]['total_found']}",
+        )
 except Exception as e:
     log("empty query exception", error=f"{type(e).__name__}: {e}")
 
@@ -291,7 +366,7 @@ except Exception as e:
 PHASE = "08-REGISTRY"
 log("Checking REGISTRY")
 
-check("REGISTRY has all 4 providers", len(REGISTRY) == 4)
+check("REGISTRY has all active providers", len(REGISTRY) == 3)
 for name, cls in REGISTRY.items():
     try:
         inst = cls()

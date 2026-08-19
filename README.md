@@ -10,7 +10,7 @@
 
 # MCP-Jobs
 
-MCP server pro scraping českých pracovních portálů s boolean matchingem, exclude listy, location/salary filtry a **PostgreSQL perzistencí**. Nástupce legacy scrapers — **5.8× rychlejší**, config-driven, **144 unit testů**, hardening pro produkční nasazení.
+MCP server pro scraping českých pracovních portálů s boolean matchingem, exclude listy, location/salary filtry a **PostgreSQL perzistencí**. Nástupce legacy scrapers — **5.8× rychlejší**, config-driven, **141 unit testů**, hardening pro produkční nasazení.
 
 ## Features
 
@@ -20,11 +20,11 @@ MCP server pro scraping českých pracovních portálů s boolean matchingem, ex
 - **NFKD diakritika** — automatická normalizace (programátor = programator)
 - **Location & salary filter** — substring location match, regex salary extraction (thousand-separator)
 - **Bazos subdomény** — automatická detekce (prace.bazos.cz, www.bazos.cz atd.)
-- **Rate limiting** — 1.0s mezi requesty (ToS compliance, IP ochrana)
+- **Rate limiting** — 0.5s mezi requesty (ToS compliance, IP ochrana, clamp min 0.2s)
 - **Pages guard** — max 50 stránek na volání (resource abuse prevence)
 - **Auto-validace boolean výrazů** — fail-fast při malformed configu
 - **MCP-native** — stdio transport, FastMCP SDK, ready pro AI agent integraci
-- **144 unit testů** — pytest, plné pokrytí matcheru, pipeline, providerů, configu, DB perzistence
+- **141 unit testů** — pytest, plné pokrytí matcheru, pipeline, providerů, configu, DB perzistence
 - **Structured logging** — per-card skip count, 0-ads alert, žádné silent failures
 - **MCP L3 Prompts** — `search_expert` prompt pro převod přirozeného jazyka na boolean query
 - **PostgreSQL persistence (Faze 1)** — schema.sql (DDL), dedup přes URL UNIQUE + ON CONFLICT, run audit (pipeline_runs), graceful degradation (DB nedostupná → pipeline běží dál, jen bez zápisu)
@@ -46,8 +46,7 @@ src/mcp_jobs/
 │   ├── base.py        # BaseScraper ABC
 │   ├── bazos.py       # Bazos.cz s params podporou (hlokalita, humkreis)
 │   ├── jobs.py        # Jobs.cz
-│   ├── pracecz.py     # Prace.cz
-│   └── nyx.py         # Nyx.cz (deprecated — auth-gated, není job portál)
+│   └── pracecz.py     # Prace.cz
 ├── server.py          # FastMCP instance + tool registrace + MCP L3 prompt
 └── cli.py             # CLI entry point (stdio MCP transport)
 data/
@@ -79,7 +78,7 @@ docker compose up -d
 copy .env.example .env   # nastav DATABASE_URL=postgres://mcpjobs:mcpjobs@localhost:5432/mcpjobs
 # nebo: scripts\db.ps1 (restart, psql, logy)
 
-# Testy (144 testů; DB testy běží na mcpjobs_test, jinak se skipnou)
+# Testy (141 testů; DB testy běží na mcpjobs_test, jinak se skipnou)
 pytest tests/ -v
 
 # ETL pipeline
@@ -118,7 +117,7 @@ queries:
 ## Pipeline flow
 
 ```
-1. _scrape_all() → pool [Ad] (všechny portály, kategorie, stránky; 1.0s delay mezi requesty)
+1. _scrape_all() → pool [Ad] (všechny portály, kategorie, stránky; 0.5s delay mezi requesty)
 2. Pro každý query:
    ├── Portal filter (ad.portal IN query.portals?)
    ├── Boolean match (evaluate_boolean AST — LRU cached, 1× parse per unique query)
@@ -174,8 +173,8 @@ Každý ETL běh generuje JSON s per-provider timingem:
 | Per-provider bazos | ~80 s | **~12 s** | **6.7× faster** |
 | Per-provider jobs | ~40 s | **~8 s** | **5.0× faster** |
 | Per-provider pracecz | ~60 s | **~16 s** | **3.8× faster** |
-| Unit tests | 0 | **144** | — |
-| Rate limiting | `sleep(1.0-2.5)` | **1.0s přesný delay** | ToS compliant |
+| Unit tests | 0 | **141** | — |
+| Rate limiting | `sleep(1.0-2.5)` | **0.5s přesný delay** | ToS compliant |
 
 ### Hlavní vylepšení oproti v0.3.1 (Iteration 3→8)
 
@@ -183,11 +182,11 @@ Každý ETL běh generuje JSON s per-provider timingem:
 |---------|--------|--------|
 | AST re-parses/query | 8000 (per ad) | **8** (LRU cached) |
 | Pages guard | unlimited | **max 50** |
-| Request delay | 0s | **1.0s** (rate limiting) |
+| Request delay | 0s | **0.5s** (rate limiting) |
 | Boolean validation | runtime only | **config-load time** |
 | MCP error reporting | inconsistent | **unified `[{"error":...}]`** |
 | Config error messages | raw TypeError | **user-friendly** |
-| Test count | 97 | **144** |
+| Test count | 97 | **141** |
 | Inline import v loopu | ano | **top-level** |
 | Silent errors | ano | **eliminovány loggerem** (http/storage/base) |
 | Persistence | in-memory | **query_store.json + correlation_cache.json + PostgreSQL** (Faze 1) |
@@ -212,7 +211,7 @@ Každý ETL běh generuje JSON s per-provider timingem:
 | Output | CSV+MD per portal | Unified JSON |
 | Protokol | Žádný | MCP (Model Context Protocol) |
 | Prompty | N/A | `search_expert` (MCP L3) |
-| Testy | 0 | **144 pytestů** |
+| Testy | 0 | **141 pytestů** |
 | Detail fetch | sequential | **parallel** (ThreadPoolExecutor) |
 | Security | none | **domain allowlist** (SSRF protection) |
 
@@ -234,7 +233,7 @@ Test izolace (P73): DB testy běží proti `mcpjobs_test` (odvozeno z `DATABASE_
 
 | Level | Status |
 |-------|--------|
-| L1 — Tools | ✅ 5 MCP tools |
+| L1 — Tools | ✅ 6 MCP tools |
 | L2 — Resources | ✅ `mcp-jobs://ads/{query_id}`, `mcp-jobs://ads/{query_id}/report`, `mcp-jobs://ads/list` |
 | L3 — Prompts | ✅ `search_expert` prompt |
 | L4 — Streaming | ⬜ Plánováno (progress reporting) |
@@ -267,7 +266,7 @@ Test izolace (P73): DB testy běží proti `mcpjobs_test` (odvozeno z `DATABASE_
 | Oblast | Stav |
 |--------|------|
 | Verze | 0.4.0 (Faze 1 standalone pivot) |
-| Testy | 144/144 PASS (lokálně; 2 encoding harness testy opraveny 2026-08-19) |
+| Testy | 141/141 PASS (lokálně; 2 encoding harness testy opraveny 2026-08-19) |
 | PostgreSQL | ✅ Faze 1 done: schema, docker-compose, db.py, .env self-contained, P73 izolace |
 | Output | ✅ Unified `etl_{PROFILE}_{ts}.{json,md,html}` (Storage.save_outputs, dedup na normalizovaném obsahu) |
 | CI | ✅ Opraveno 2026-08-19: create test DB krok v ci.yml (P73); push k ověření |

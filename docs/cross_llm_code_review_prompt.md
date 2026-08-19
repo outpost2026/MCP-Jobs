@@ -65,7 +65,6 @@ portals:
   jobs:     { enabled: true, categories: [{url, pages: 20+5}] }
   bazos:    { enabled: true, categories: [{url, pages: 15+15}] }
   pracecz:  { enabled: true, categories: [{url, pages: 25}] }
-  nyx:      { enabled: false }  # deprecated
 
 queries: 8 dotazů (python_ai_engineer, ai_llm_engineer, mcp_agentic,
            data_engineering, devops_ci_cd, prumyslova_automatizace,

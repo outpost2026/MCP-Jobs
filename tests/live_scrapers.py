@@ -1,5 +1,5 @@
 """
-Live integration test — scrapes all 4 CZ portals and saves results to data/.
+Live integration test — scrapes all CZ portals and saves results to data/.
 Run with: python tests/test_live_scrapers.py [--save]
 """
 
@@ -26,14 +26,13 @@ QUERIES = {
     "bazos": "python",
     "jobs": "python developer",
     "pracecz": "programátor",
-    "nyx": "CNC",
 }
 
 
 def test_scraper(name: str, query: str, save: bool = False) -> dict:
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {name.upper()} — query: '{query}'")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     scraper_cls = REGISTRY[name]
     scraper = scraper_cls()
@@ -68,7 +67,9 @@ def test_scraper(name: str, query: str, save: bool = False) -> dict:
 
     # Save raw HTML (always when --save, even for empty responses)
     if save:
-        html_path = raw_dir / f"raw_{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+        html_path = (
+            raw_dir / f"raw_{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+        )
         raw_content = text if text else ""
         html_path.write_text(raw_content, encoding="utf-8")
         result["raw_html_saved"] = True
@@ -108,12 +109,18 @@ def test_scraper(name: str, query: str, save: bool = False) -> dict:
         if a.location:
             print(f"       Location: {_safe(a.location)}")
         if a.salary or a.price:
-            print(f"       {'Salary' if a.salary else 'Price'}: {_safe(a.salary or a.price)}")
+            print(
+                f"       {'Salary' if a.salary else 'Price'}: {_safe(a.salary or a.price)}"
+            )
 
     # Save results JSON
     if save:
-        json_path = raw_dir / f"results_{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        json_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+        json_path = (
+            raw_dir / f"results_{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        )
+        json_path.write_text(
+            json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         print(f"  [SAVED] Results: {json_path.name}")
 
     return result
@@ -125,7 +132,12 @@ def main():
         print("[SAVE] Save mode ON — raw HTML and JSON will be written to data/")
 
     results = {}
-    summary_path = REPO_ROOT / "data" / "logs" / f"live_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    summary_path = (
+        REPO_ROOT
+        / "data"
+        / "logs"
+        / f"live_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    )
 
     for name, query in QUERIES.items():
         results[name] = test_scraper(name, query, save=save)
@@ -133,9 +145,9 @@ def main():
         if name != list(QUERIES.keys())[-1]:
             time.sleep(1.5)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  SUMMARY")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     all_ok = True
     for name, r in results.items():
         if r["status"] == "ok":
@@ -155,11 +167,20 @@ def main():
 
     summary = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "summary": {n: {"status": r["status"], "ad_count": r["ad_count"], "error": r.get("error")} for n, r in results.items()},
+        "summary": {
+            n: {
+                "status": r["status"],
+                "ad_count": r["ad_count"],
+                "error": r.get("error"),
+            }
+            for n, r in results.items()
+        },
         "all_ok": all_ok,
     }
     summary_path.parent.mkdir(parents=True, exist_ok=True)
-    summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     print(f"\n[SAVED] Summary: {summary_path}")
 
     return 0 if all_ok else 1

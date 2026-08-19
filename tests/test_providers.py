@@ -2,7 +2,6 @@ from mcp_jobs.models import Ad
 from mcp_jobs.providers.bazos import BazosScraper
 from mcp_jobs.providers.jobs import JobsScraper
 from mcp_jobs.providers.pracecz import PraceczScraper
-from mcp_jobs.providers.nyx import NyxScraper
 from mcp_jobs.providers import ACTIVE_PORTALS
 
 
@@ -56,15 +55,6 @@ PRACECZ_HTML = """
     </div>
     <ul data-testid="search-results-item-highlights-part-one"><li>55000 Kč</li></ul>
 </article>
-"""
-
-NYX_HTML = """
-<section class="market-item">
-    <h2><a href="/discussion/789/">CNC fréza na prodej</a></h2>
-    <div class="perex">Prodám CNC frézu, rok 2020</div>
-    <div class="price">150000 Kč</div>
-    <div class="date">2026-07-10</div>
-</section>
 """
 
 
@@ -199,30 +189,6 @@ def test_pracecz_scrape_all_stops_on_empty():
     scraper = PraceczScraper()
     ads = scraper.scrape_all("https://www.prace.cz/nabidky/", max_pages=2)
     assert isinstance(ads, list)
-
-
-def test_nyx_parse_listings():
-    scraper = NyxScraper()
-    ads = scraper.parse_listings(NYX_HTML, "cnc")
-    assert len(ads) == 1
-    assert ads[0].title == "CNC fréza na prodej"
-    assert ads[0].url == "https://nyx.cz/discussion/789/"
-    assert ads[0].price == "150000 Kč"
-    assert ads[0].description == "Prodám CNC frézu, rok 2020"
-    assert ads[0].date == "2026-07-10"
-    assert ads[0].matched_keyword == "cnc"
-
-
-def test_nyx_empty_html():
-    scraper = NyxScraper()
-    ads = scraper.parse_listings("<html></html>", "cnc")
-    assert ads == []
-
-
-def test_nyx_scrape_all_returns_empty():
-    scraper = NyxScraper()
-    ads = scraper.scrape_all("https://nyx.cz/")
-    assert ads == []
 
 
 def test_active_portals_excludes_nyx():

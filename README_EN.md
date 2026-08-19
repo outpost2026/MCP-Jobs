@@ -1,4 +1,4 @@
-<div align="left">
+﻿<div align="left">
   <a href="https://github.com/outpost2026/MCP-Jobs/blob/main/README.md">
     <img src="https://flagcdn.com/24x18/cz.png" alt="CZ" height="18"> Česky
   </a>
@@ -10,7 +10,7 @@
 
 # MCP-Jobs
 
-MCP server for scraping Czech job portals with boolean matching, exclude lists, location/salary filters and **PostgreSQL persistence**. Successor to legacy scrapers — **5.8× faster**, config-driven, **144 unit tests**, production hardening.
+MCP server for scraping Czech job portals with boolean matching, exclude lists, location/salary filters and **PostgreSQL persistence**. Successor to legacy scrapers — **5.8× faster**, config-driven, **141 unit tests**, production hardening.
 
 ## Features
 
@@ -20,11 +20,11 @@ MCP server for scraping Czech job portals with boolean matching, exclude lists, 
 - **NFKD diacritics** — automatic normalization (programátor = programator)
 - **Location & salary filter** — substring location match, regex salary extraction (thousand-separator)
 - **Bazos subdomains** — automatic detection (prace.bazos.cz, www.bazos.cz, etc.)
-- **Rate limiting** — 1.0s between requests (ToS compliance, IP protection)
+- **Rate limiting** — 0.5s between requests (ToS compliance, IP protection, clamp min 0.2s)
 - **Pages guard** — max 50 pages per call (resource abuse prevention)
 - **Auto-validation** — boolean expressions validated at config load time (fail-fast)
 - **MCP-native** — stdio transport, FastMCP SDK, ready for AI agent integration
-- **144 unit tests** — pytest, full coverage of matcher, pipeline, providers, config, DB persistence
+- **141 unit tests** — pytest, full coverage of matcher, pipeline, providers, config, DB persistence
 - **Structured logging** — per-card skip count, 0-ads alert, no silent failures
 - **MCP L3 Prompts** — `search_expert` prompt for natural language to boolean query conversion
 - **PostgreSQL persistence (Phase 1)** — schema.sql (DDL), URL UNIQUE + ON CONFLICT dedup, run audit (pipeline_runs), graceful degradation (DB down → pipeline keeps running, just no writes)
@@ -46,8 +46,7 @@ src/mcp_jobs/
 │   ├── base.py        # BaseScraper ABC
 │   ├── bazos.py       # Bazos.cz with params support (hlokalita, humkreis)
 │   ├── jobs.py        # Jobs.cz
-│   ├── pracecz.py     # Prace.cz
-│   └── nyx.py         # Nyx.cz (deprecated — auth-gated, not a job portal)
+│   └── pracecz.py     # Prace.cz
 ├── server.py          # FastMCP instance + tool registration + MCP L3 prompt
 └── cli.py             # CLI entry point (stdio MCP transport)
 data/
@@ -79,7 +78,7 @@ docker compose up -d
 copy .env.example .env   # set DATABASE_URL=postgres://mcpjobs:mcpjobs@localhost:5432/mcpjobs
 # or: scripts\db.ps1 (restart, psql, logs)
 
-# Tests (144 tests; DB tests run against mcpjobs_test, skipped otherwise)
+# Tests (141 tests; DB tests run against mcpjobs_test, skipped otherwise)
 pytest tests/ -v
 
 # ETL pipeline
@@ -118,7 +117,7 @@ queries:
 ## Pipeline flow
 
 ```
-1. _scrape_all() → pool [Ad] (all portals, categories, pages; 1.0s delay between requests)
+1. _scrape_all() → pool [Ad] (all portals, categories, pages; 0.5s delay between requests)
 2. For each query:
    ├── Portal filter (ad.portal IN query.portals?)
    ├── Boolean match (evaluate_boolean AST — LRU cached, 1× parse per unique query)
@@ -172,8 +171,8 @@ Each ETL run generates JSON with per-provider timing:
 | Per-provider bazos | ~80 s | **~12 s** | **6.7× faster** |
 | Per-provider jobs | ~40 s | **~8 s** | **5.0× faster** |
 | Per-provider pracecz | ~60 s | **~16 s** | **3.8× faster** |
-| Unit tests | 0 | **144** | — |
-| Rate limiting | `sleep(1.0-2.5)` random | **1.0s precise delay** | ToS compliant |
+| Unit tests | 0 | **141** | — |
+| Rate limiting | `sleep(1.0-2.5)` random | **0.5s precise delay** | ToS compliant |
 
 ### Key Improvements v0.3.1 → v0.4.0 (Iteration 3→8)
 
@@ -181,11 +180,11 @@ Each ETL run generates JSON with per-provider timing:
 |---------|--------|--------|
 | AST re-parses/query | 8000 (per ad) | **8** (LRU cached) |
 | Pages guard | unlimited | **max 50** |
-| Request delay | 0s | **1.0s** (rate limiting) |
+| Request delay | 0s | **0.5s** (rate limiting) |
 | Boolean validation | runtime only | **config-load time** |
 | MCP error reporting | inconsistent | **unified `[{"error":...}]`** |
 | Config error messages | raw TypeError | **user-friendly** |
-| Test count | 97 | **144** |
+| Test count | 97 | **141** |
 | Inline import in loop | yes | **top-level** |
 | Silent errors | yes | **eliminated via logger** (http/storage/base) |
 | Persistence | in-memory | **query_store.json + correlation_cache.json + PostgreSQL** (Phase 1) |
@@ -210,7 +209,7 @@ Each ETL run generates JSON with per-provider timing:
 | Output | CSV+MD per portal | Unified JSON |
 | Protocol | None | MCP (Model Context Protocol) |
 | Prompts | N/A | `search_expert` (MCP L3) |
-| Tests | 0 | **144 pytest** |
+| Tests | 0 | **141 pytest** |
 | Detail fetch | sequential | **parallel** (ThreadPoolExecutor) |
 | Security | none | **domain allowlist** (SSRF protection) |
 
@@ -232,7 +231,7 @@ Test isolation (P73): DB tests run against `mcpjobs_test` (derived from `DATABAS
 
 | Level | Status |
 |-------|--------|
-| L1 — Tools | ✅ 5 MCP tools |
+| L1 — Tools | ✅ 6 MCP tools |
 | L2 — Resources | ✅ `mcp-jobs://ads/list`, `mcp-jobs://ads/{query_id}`, `mcp-jobs://ads/{query_id}/report` |
 | L3 — Prompts | ✅ `search_expert` prompt |
 | L4 — Streaming | ⬜ Planned (progress reporting) |
@@ -265,7 +264,7 @@ Test isolation (P73): DB tests run against `mcpjobs_test` (derived from `DATABAS
 | Area | Status |
 |------|--------|
 | Version | 0.4.0 (Phase 1 standalone pivot) |
-| Tests | 144/144 PASS (locally; 2 encoding harness tests fixed 2026-08-19) |
+| Tests | 141/141 PASS (locally; 2 encoding harness tests fixed 2026-08-19) |
 | PostgreSQL | ✅ Phase 1 done: schema, docker-compose, db.py, .env self-contained, P73 isolation |
 | Output | ✅ Unified `etl_{PROFILE}_{ts}.{json,md,html}` (Storage.save_outputs, dedup on normalized content) |
 | CI | ✅ Fixed 2026-08-19: create test DB step in ci.yml (P73); push for verification |
