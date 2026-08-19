@@ -241,15 +241,14 @@ Test izolace (P73): DB testy běží proti `mcpjobs_test` (odvozeno z `DATABASE_
 
 ## Dokumentace
 
-- `docs/report_legacy_vs_mcp.md` — podrobný report porovnání s legacy pipeline
-- `docs/report_full_comparison_iter4.md` — Iteration 4 hardening report
-- `docs/audit_report_claude.md` — v0.3.0 audit
-- `docs/audit_MCP-Jobs_v0.3.1.md` — Cross-LLM meta-audit (peer review Sonnet 5.0)
-- `docs/audit_prompt_v1.1.docx` — Aktuální audit prompt pro frontier LLM
 - `docs/cross_llm_code_review_prompt.md` — Cross-LLM audit prompt
-- `docs/semantic_analysis_cross_review_2026-08-06.md` — EROI analysis + action plan
-- `docs/refresh_run_it_jobs_2026-08-06.md` — Fresh run report (AI_NATIVE)
-- `docs/refresh_run_legacy_jobs_2026-08-06.md` — Fresh run report (LEGACY_MANUAL)
+- `docs/sql_ontologie_mechanismy_2026-08-15.md` — SQL ontologie (DDL/DML/DQL, dependencies) — učební dokument
+- `docs/postgresql_zakladni_prikazy_2026-08-15.md` — PostgreSQL reference (psql meta, dedup vzory, ads analýzy)
+- `docs/edukace_faze1_postgresql_2026-08-15.md` — retrospektiva Fáze 1 (PostgreSQL persistence)
+- `docs/edukace_db_prvni_kontakt_2026-08-15.md` — první kontakt s databází (analogie Excel)
+- `docs/powershell_encoding.md` — PowerShell/cp1250 encoding root causes a řešení
+- `docs/l2_resources.md` — MCP L2 Resources dokumentace
+- `docs/_archive/` — superseded dokumenty (audity, run reporty, plány — historie zachována)
 
 ## Známé limity
 

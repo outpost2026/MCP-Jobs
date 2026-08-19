@@ -33,3 +33,6 @@ data/*
 !data/schema.sql
 output/
 src/data/
+
+# Editor-locked docx (archived copy in docs/_archive/)
+docs/development_plan_report.docx

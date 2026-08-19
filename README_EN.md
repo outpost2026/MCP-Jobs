@@ -239,15 +239,14 @@ Test isolation (P73): DB tests run against `mcpjobs_test` (derived from `DATABAS
 
 ## Documentation
 
-- `docs/report_legacy_vs_mcp.md` — detailed legacy vs MCP-Jobs comparison
-- `docs/report_full_comparison_iter4.md` — Iteration 4 hardening report
-- `docs/audit_report_claude.md` — v0.3.0 audit
-- `docs/audit_MCP-Jobs_v0.3.1.md` — Cross-LLM meta-audit (Sonnet 5.0 peer review)
-- `docs/audit_prompt_v1.1.docx` — Current audit prompt for frontier LLMs
 - `docs/cross_llm_code_review_prompt.md` — Cross-LLM audit prompt
-- `docs/semantic_analysis_cross_review_2026-08-06.md` — EROI analysis + action plan
-- `docs/refresh_run_it_jobs_2026-08-06.md` — Fresh run report (AI_NATIVE)
-- `docs/refresh_run_legacy_jobs_2026-08-06.md` — Fresh run report (LEGACY_MANUAL)
+- `docs/sql_ontologie_mechanismy_2026-08-15.md` — SQL ontology (DDL/DML/DQL, dependencies) — learning doc
+- `docs/postgresql_zakladni_prikazy_2026-08-15.md` — PostgreSQL reference (psql meta, dedup patterns, ads analyses)
+- `docs/edukace_faze1_postgresql_2026-08-15.md` — Phase 1 retrospective (PostgreSQL persistence)
+- `docs/edukace_db_prvni_kontakt_2026-08-15.md` — first contact with the database (Excel analogy)
+- `docs/powershell_encoding.md` — PowerShell/cp1250 encoding root causes and solutions
+- `docs/l2_resources.md` — MCP L2 Resources documentation
+- `docs/_archive/` — superseded documents (audits, run reports, plans — history preserved)
 
 ## Known Limitations
 
