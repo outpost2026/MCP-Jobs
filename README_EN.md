@@ -259,7 +259,7 @@ Test isolation (P73): DB tests run against `mcpjobs_test` (derived from `DATABAS
 - **Bazos detail fetch (P2)**: company/seller info only from contact link (`jmeno=`) on the detail page — ads without a contact link get no company. Logged in pipeline (limit, not error); full implementation deferred.
 - **Security**: threat model not documented — must be added before public release
 - **Domain allowlist**: SEC-001 SSRF protection — only allowed domains (bazos.cz, jobs.cz, prace.cz)
-- **CI**: test DB `mcpjobs_test` must be created in CI (P73 isolation) — last 3 runs failed (2026-08-19)
+- **CI**: test DB `mcpjobs_test` created by the "Create test database" step in ci.yml (P73 isolation) — fixed 2026-08-19
 
 ## Development status (2026-08-19)
 
@@ -269,5 +269,5 @@ Test isolation (P73): DB tests run against `mcpjobs_test` (derived from `DATABAS
 | Tests | 144/144 PASS (locally; 2 encoding harness tests fixed 2026-08-19) |
 | PostgreSQL | ✅ Phase 1 done: schema, docker-compose, db.py, .env self-contained, P73 isolation |
 | Output | ✅ Unified `etl_{PROFILE}_{ts}.{json,md,html}` (Storage.save_outputs, dedup on normalized content) |
-| CI | ⚠️ Red: `mcpjobs_test` not created in ci.yml (P73) — fix pending |
+| CI | ✅ Fixed 2026-08-19: create test DB step in ci.yml (P73); push for verification |
 | Backlog | Engineering-process Phase 09 (uv, ruff+mypy, GH Actions, pre-commit, coverage 66 %), product Phase 09 (FTS5, Dockerfile non-root, SSRF allowlist, `__main__.py`+`--smoke`) |

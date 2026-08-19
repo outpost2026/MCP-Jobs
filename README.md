@@ -261,7 +261,7 @@ Test izolace (P73): DB testy běží proti `mcpjobs_test` (odvozeno z `DATABASE_
 - **Bazos detail fetch (P2)**: company/seller info jen z contact linku (`jmeno=`) na detail stránce — u inzerátů bez contact linku se company nevyplní. Logováno v pipeline (limit, ne chyba); plná implementace odložena.
 - **Security**: threat model není dokumentován — nutno doplnit před veřejnou publikací
 - **Domain allowlist**: SEC-001 SSRF protection — pouze povolené domény (bazos.cz, jobs.cz, prace.cz)
-- **CI**: test DB `mcpjobs_test` nutno vytvořit v CI (P73 izolace) — poslední 3 runs failed (2026-08-19)
+- **CI**: test DB `mcpjobs_test` se vytváří v ci.yml krokem "Create test database" (P73 izolace) — fix 2026-08-19
 
 ## Vývojový stav (2026-08-19)
 
@@ -271,5 +271,5 @@ Test izolace (P73): DB testy běží proti `mcpjobs_test` (odvozeno z `DATABASE_
 | Testy | 144/144 PASS (lokálně; 2 encoding harness testy opraveny 2026-08-19) |
 | PostgreSQL | ✅ Faze 1 done: schema, docker-compose, db.py, .env self-contained, P73 izolace |
 | Output | ✅ Unified `etl_{PROFILE}_{ts}.{json,md,html}` (Storage.save_outputs, dedup na normalizovaném obsahu) |
-| CI | ⚠️ Red: `mcpjobs_test` nevytvořen v ci.yml (P73) — fix pending |
+| CI | ✅ Opraveno 2026-08-19: create test DB krok v ci.yml (P73); push k ověření |
 | Backlog | Engineering-proces Phase 09 (uv, ruff+mypy, GH Actions, pre-commit, coverage 66 %), produktový Phase 09 (FTS5, Dockerfile non-root, SSRF allowlist, `__main__.py`+`--smoke`) |

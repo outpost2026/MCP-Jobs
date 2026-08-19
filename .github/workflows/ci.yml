@@ -38,5 +38,7 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Lint
         run: ruff check src/ scripts/healthcheck.py
+      - name: Create test database
+        run: python -X utf8 -c "import os, psycopg; admin = os.environ['DATABASE_URL'].rsplit('/', 1)[0] + '/postgres'; c = psycopg.connect(admin, autocommit=True); c.execute('CREATE DATABASE mcpjobs_test'); c.close()"
       - name: Test
         run: pytest -q
