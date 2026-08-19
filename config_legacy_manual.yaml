@@ -55,6 +55,12 @@ portals:
       - url: "https://www.jenprace.cz/brigady/praha/"
         pages: 5
 
+  profesia:
+    enabled: true
+    categories:
+      - url: "https://www.profesia.cz/prace/praha/"
+        pages: 10
+
   nyx:
     enabled: false
     categories: []
@@ -97,21 +103,21 @@ queries:
     exclude: [*_x_exclude_common, *_x_exclude_nemecko, "autoskola", "revize", "prodavame"]
     min_salary: 0
     locations: ["praha"]
-    portals: ["bazos", "pracecz", "jobs", "jenprace"]
+    portals: ["bazos", "pracecz", "jobs", "jenprace", "profesia"]
 
   udrzbar:
     boolean: "(udrzbar OR udrzba OR udrzbarka OR maintenance OR (servisni AND technik)) NOT (it OR software OR web OR datovy OR klimatizace OR chlazeni OR tramvaj OR automechanik OR mechanik OR elektrik OR elektro OR semafor OR doprava)"
     exclude: [*_x_exclude_common, *_x_exclude_nemecko, "uklizec", "uklízeč", "uklid", "úklid", "ict", "laborator", "laboratoř", "it podpora"]
     min_salary: 0
     locations: ["praha"]
-    portals: ["bazos", "pracecz", "jobs", "jenprace"]
+    portals: ["bazos", "pracecz", "jobs", "jenprace", "profesia"]
 
   spravce_budov:
     boolean: "((spravce OR správce OR facility OR sprava) AND (budov OR arealu OR objektu OR nemovitosti)) NOT (it OR system OR software OR linux OR network OR e-mail OR email OR informacnich OR informačních OR vyvojar OR vyvojář OR aplikaci OR systemu OR systemov OR dukovany)"
     exclude: [*_x_exclude_common, *_x_exclude_nemecko, "linux", "network", "e-mail", "email", "informacnich", "informačních", "vyvojar", "vyvojář", "aplikaci", "systemu", "systemov", "dukovany"]
     min_salary: 0
     locations: ["praha"]
-    portals: ["bazos", "pracecz", "jenprace"]
+    portals: ["bazos", "pracecz", "jenprace", "profesia"]
 
   zahradnik:
     boolean: "(zahradnik OR zahradník OR zahradni OR (sekani AND travy))"
@@ -139,4 +145,4 @@ queries:
     exclude: [*_x_exclude_common, *_x_exclude_nemecko, "personalni", "pronajem", "zprostredkovani", "ubytovn"]
     min_salary: 0
     locations: ["brno", "ostrava", "praha"]
-    portals: ["bazos", "pracecz", "jenprace"]
+    portals: ["bazos", "pracecz", "jenprace", "profesia"]

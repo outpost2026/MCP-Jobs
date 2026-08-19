@@ -172,6 +172,7 @@ PORTAL_ALIASES: dict[str, str] = {
     "jobs": "jobs",
     "pracecz": "pracecz",
     "prace": "pracecz",
+    "profesia": "profesia",
 }
 
 
@@ -597,6 +598,7 @@ def _default_category(name: str) -> str:
         "jenprace": "https://www.jenprace.cz/nabidky/praha/",
         "jobs": "https://www.jobs.cz/prace/praha/",
         "pracecz": "https://www.prace.cz/nabidky/",
+        "profesia": "https://www.profesia.cz/prace/praha/",
     }
     return defaults.get(name, "")
 
@@ -607,5 +609,6 @@ def _portal_description(name: str) -> str:
         "jenprace": "Dedicated job portal (jenprace.cz network)",
         "jobs": "Dedicated job portal (jobs.cz network)",
         "pracecz": "Dedicated job portal (prace.cz network)",
+        "profesia": "Dedicated job portal (profesia.cz network)",
     }
     return descriptions.get(name, "")

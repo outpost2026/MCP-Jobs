@@ -4,6 +4,7 @@ from mcp_jobs.providers.bazos import BazosScraper
 from mcp_jobs.providers.jenprace import JenpraceScraper
 from mcp_jobs.providers.jobs import JobsScraper
 from mcp_jobs.providers.pracecz import PraceczScraper
+from mcp_jobs.providers.profesia import ProfesiaScraper
 
 BAZOS_HTML = """
 <div class="inzeraty">
@@ -80,6 +81,36 @@ JENPRACE_HTML = """
     </ul>
     <div class="date-offer-list fs-small fw-medium" data-cy="offer-date-created">dnesni</div>
 </article>
+"""
+
+PROFESIA_HTML = """
+<li class="list-row">
+    <h2>
+        <a id="offer5344761" href="/prace/predvyber-cz/O5344761?search_id=cf078ee8">
+            <span class='title'>Terénní pracovník \u2013 kontrola a kalibrace vah (Metrolog)</span>
+        </a>
+    </h2>
+    <span class='employer'>PŘEDVÝBĚR.CZ a.s.</span>
+    <span title="Hostivař, Praha" class='job-location'>Hostivař, Praha</span>
+    <span class='label-group'>
+        <a href="/prace/predvyber-cz/O5344761?search_id=cf078ee8" class="half-margin-on-right"
+           data-dimension7="Salary label">
+            <span class="label label-bordered green half-margin-on-top">
+                <svg class='icon money green' viewbox="0 0 20 20"><use xlink:href='/images/svg/money.svg#Layer_1'></use></svg>
+                Od 30 000 Kč/měsíc
+            </span>
+        </a>
+    </span>
+    <div class='list-footer'>
+        <div class='row'>
+            <div class='col-sm-6 col-sm-push-6 list-footer-right'>
+                <span data-dimension13="d0" data-dimension14="d0" class='info'>
+                    <strong>Před 2 hodinami</strong>
+                </span>
+            </div>
+        </div>
+    </div>
+</li>
 """
 
 
@@ -319,13 +350,90 @@ def test_jenprace_fetch_detail_fills_company_and_location():
     assert ad.location == "Praha"
 
 
+def test_profesia_parse_listings():
+    scraper = ProfesiaScraper()
+    ads = scraper.parse_listings(PROFESIA_HTML, "metrolog")
+    assert len(ads) == 1
+    assert (
+        ads[0].title == "Terénní pracovník \u2013 kontrola a kalibrace vah (Metrolog)"
+    )
+    assert ads[0].url == "https://www.profesia.cz/prace/predvyber-cz/O5344761"
+    assert ads[0].company == "PŘEDVÝBĚR.CZ a.s."
+    assert ads[0].location == "Hostivař, Praha"
+    assert ads[0].salary == "Od 30 000 Kč/měsíc"
+    assert ads[0].date == "Před 2 hodinami"
+    assert ads[0].matched_keyword == "metrolog"
+
+
+def test_profesia_strips_search_id_from_url():
+    """search_id je session param — musi zmizet, jinak duplicita mezi behy."""
+    scraper = ProfesiaScraper()
+    ads = scraper.parse_listings(PROFESIA_HTML, "")
+    assert ads[0].url == "https://www.profesia.cz/prace/predvyber-cz/O5344761"
+    assert "search_id" not in ads[0].url
+
+
+def test_profesia_empty_html():
+    scraper = ProfesiaScraper()
+    ads = scraper.parse_listings("<html></html>", "metrolog")
+    assert ads == []
+
+
+def test_profesia_broken_selector_logs(caplog):
+    """M4 fix: no cards found -> error log (layout change detection)."""
+    import logging
+
+    scraper = ProfesiaScraper()
+    ads = scraper.parse_listings('<div class="totally-different">x</div>', "metrolog")
+    assert ads == []
+    assert any("0 cards" in r.message for r in caplog.records)
+    assert caplog.records[-1].levelno == logging.ERROR
+
+
+def test_profesia_scrape_all_stops_on_empty():
+    scraper = ProfesiaScraper()
+    ads = scraper.scrape_all("https://www.profesia.cz/prace/praha/", max_pages=2)
+    assert isinstance(ads, list)
+
+
+def test_profesia_fetch_detail_returns_description():
+    """fetch_detail: popis v div.details[itemprop="description"]."""
+    detail_html = """
+    <div class="details" itemprop="description">
+        <div class='job-info details-section'>
+            <div class='subtitle-line'><h3>Informace o pracovním místě</h3></div>
+            <h4>Náplň práce, pravomoci a zodpovědnosti</h4>
+            <div class='details-desc'>
+                <p>Kontrola a kalibrace vah u zákazníků v terénu.</p>
+                <p>Práce s certifikovanými závažími.</p>
+            </div>
+        </div>
+    </div>
+    """
+
+    class _DetailClient:
+        def get_text(self, url):
+            return detail_html
+
+    scraper = ProfesiaScraper(http_client=_DetailClient())
+    ad = Ad(
+        title="Metrolog",
+        url="https://www.profesia.cz/prace/predvyber-cz/O5344761",
+        portal="profesia",
+    )
+    desc = scraper.fetch_detail(ad)
+    assert desc is not None
+    assert "Kontrola a kalibrace vah" in desc
+
+
 def test_active_portals_excludes_nyx():
     assert "nyx" not in ACTIVE_PORTALS
     assert "bazos" in ACTIVE_PORTALS
     assert "jobs" in ACTIVE_PORTALS
     assert "pracecz" in ACTIVE_PORTALS
     assert "jenprace" in ACTIVE_PORTALS
-    assert len(ACTIVE_PORTALS) == 4
+    assert "profesia" in ACTIVE_PORTALS
+    assert len(ACTIVE_PORTALS) == 5
 
 
 def test_ad_to_dict():
