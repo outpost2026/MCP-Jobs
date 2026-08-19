@@ -4,16 +4,16 @@ Comprehensive comparison: legacy scrapers vs MCP pipeline.
 Scrapes with legacy-equivalent settings (same categories, pages, location filter)
 and applies all 94 legacy topic keywords to identify coverage gaps.
 """
+
 import json
 import sys
 from collections import Counter
-from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from mcp_jobs.http import HttpClient
-from mcp_jobs.matcher import matches_ad, has_exclude_terms, strip_diacritics
+from mcp_jobs.matcher import has_exclude_terms, matches_ad
 from mcp_jobs.providers import REGISTRY
 
 # ── Legacy-equivalent settings ──────────────────────────────────────
@@ -21,19 +21,35 @@ from mcp_jobs.providers import REGISTRY
 LEGACY_CONFIG = {
     "bazos": {
         "categories": [
-            {"url": "https://prace.bazos.cz/", "pages": 15, "psc": "18000", "radius": "25"},
-            {"url": "https://prace.bazos.cz/brigada/", "pages": 15, "psc": "18000", "radius": "25"},
+            {
+                "url": "https://prace.bazos.cz/",
+                "pages": 15,
+                "psc": "18000",
+                "radius": "25",
+            },
+            {
+                "url": "https://prace.bazos.cz/brigada/",
+                "pages": 15,
+                "psc": "18000",
+                "radius": "25",
+            },
         ]
     },
     "jobs": {
         "categories": [
             {"url": "https://www.jobs.cz/prace/praha/", "pages": 10},
-            {"url": "https://www.jobs.cz/brigady/?locality%5B0%5D%5Bcode%5D=R200000&locality%5B0%5D%5Blabel%5D=Praha&locality%5B0%5D%5Bcoords%5D=50.08455%2C14.41778&locality%5B0%5D%5Bradius%5D=0", "pages": 10},
+            {
+                "url": "https://www.jobs.cz/brigady/?locality%5B0%5D%5Bcode%5D=R200000&locality%5B0%5D%5Blabel%5D=Praha&locality%5B0%5D%5Bcoords%5D=50.08455%2C14.41778&locality%5B0%5D%5Bradius%5D=0",
+                "pages": 10,
+            },
         ]
     },
     "pracecz": {
         "categories": [
-            {"url": "https://www.prace.cz/nabidky/hlavni-mesto-praha/praha/", "pages": 15},
+            {
+                "url": "https://www.prace.cz/nabidky/hlavni-mesto-praha/praha/",
+                "pages": 15,
+            },
         ]
     },
 }
@@ -136,14 +152,20 @@ cisteni+okapu
 oprava+strechy
 """
 
-TOPICS_LIST = [t.strip().replace("+", " ") for t in LEGACY_TOPICS.strip().split("\n") if t.strip()]
+TOPICS_LIST = [
+    t.strip().replace("+", " ") for t in LEGACY_TOPICS.strip().split("\n") if t.strip()
+]
 
 # ── Helpers ─────────────────────────────────────────────────────────
+
 
 def build_bazos_url(base_url: str, offset: int, psc: str, radius: str) -> str:
     base_url = base_url.rstrip("/") + "/"
     url_path = base_url if offset == 0 else f"{base_url}{offset}/"
-    return f"{url_path}?hledat=&hlokalita={psc}&humkreis={radius}&cenaod=&cenado=&order="
+    return (
+        f"{url_path}?hledat=&hlokalita={psc}&humkreis={radius}&cenaod=&cenado=&order="
+    )
+
 
 def scrape_legacy_equivalent() -> dict:
     """Scrape all portals with legacy-equivalent settings."""
@@ -231,7 +253,9 @@ def safe_print(text):
         print(text)
     except UnicodeEncodeError:
         console_enc = sys.stdout.encoding or "utf-8"
-        safe = text.encode(console_enc, errors="replace").decode(console_enc, errors="replace")
+        safe = text.encode(console_enc, errors="replace").decode(
+            console_enc, errors="replace"
+        )
         print(safe)
 
 
@@ -244,9 +268,7 @@ def analyze_coverage(pool: dict):
         portal_unmatched = []
 
         for ad in ads:
-            text = " ".join(filter(None, [ad.title, ad.description, ad.company]))
             matched = False
-            matched_topic = None
 
             for topic in TOPICS_LIST:
                 # Build boolean: split on spaces, join with AND
@@ -258,7 +280,6 @@ def analyze_coverage(pool: dict):
 
                 if matches_ad(ad, boolean):
                     matched = True
-                    matched_topic = topic
                     portal_topic_matches[topic] += 1
                     break  # first-match-wins like legacy
 
@@ -283,28 +304,78 @@ def apply_mcp_config(pool: dict):
     MCP_QUERIES = {
         "python_jobs": {
             "boolean": "(python OR developer OR programator OR vyvojar) NOT senior",
-            "exclude": ["agentura", "nabizim", "nabizime", "prodavame", "hledam praci",
-                       "hledame kolegu", "do tymu", "dodam", "firmy", "ico",
-                       "jmenuji se", "nabor", "parta", "provadim", "provadime",
-                       "prijmeme", "prijima objednavky", "lektor", "kurz"],
+            "exclude": [
+                "agentura",
+                "nabizim",
+                "nabizime",
+                "prodavame",
+                "hledam praci",
+                "hledame kolegu",
+                "do tymu",
+                "dodam",
+                "firmy",
+                "ico",
+                "jmenuji se",
+                "nabor",
+                "parta",
+                "provadim",
+                "provadime",
+                "prijmeme",
+                "prijima objednavky",
+                "lektor",
+                "kurz",
+            ],
             "portals": ["jobs", "pracecz"],
         },
         "cnc_jobs": {
             "boolean": "(cnc OR frezar OR programovani OR serizovani)",
-            "exclude": ["agentura", "do tymu", "dodam", "firmy", "hledam praci",
-                       "hledame kolegu", "ico", "jmenuji se", "nabizim", "nabizime",
-                       "nabor", "parta", "personalni", "pronajem", "provadim",
-                       "provadime", "prijmeme", "prijima objednavky", "ubytovn",
-                       "zprostredkovani"],
+            "exclude": [
+                "agentura",
+                "do tymu",
+                "dodam",
+                "firmy",
+                "hledam praci",
+                "hledame kolegu",
+                "ico",
+                "jmenuji se",
+                "nabizim",
+                "nabizime",
+                "nabor",
+                "parta",
+                "personalni",
+                "pronajem",
+                "provadim",
+                "provadime",
+                "prijmeme",
+                "prijima objednavky",
+                "ubytovn",
+                "zprostredkovani",
+            ],
             "portals": ["bazos", "pracecz"],
         },
         "elektrikar": {
             "boolean": "(elektrikar OR elektroinstalace OR autoelektrikar)",
-            "exclude": ["agentura", "autoskola", "do tymu", "dodam", "firmy",
-                       "hledam praci", "hledame kolegu", "ico", "jmenuji se",
-                       "nabizim", "nabizime", "nabor", "parta", "prodavame",
-                       "provadim", "provadime", "prijmeme", "prijima objednavky",
-                       "revize"],
+            "exclude": [
+                "agentura",
+                "autoskola",
+                "do tymu",
+                "dodam",
+                "firmy",
+                "hledam praci",
+                "hledame kolegu",
+                "ico",
+                "jmenuji se",
+                "nabizim",
+                "nabizime",
+                "nabor",
+                "parta",
+                "prodavame",
+                "provadim",
+                "provadime",
+                "prijmeme",
+                "prijima objednavky",
+                "revize",
+            ],
             "portals": ["bazos", "pracecz", "jobs"],
         },
     }
@@ -318,7 +389,9 @@ def apply_mcp_config(pool: dict):
                     continue
                 if not matches_ad(ad, qconf["boolean"]):
                     continue
-                if has_exclude_terms(ad.title, qconf["exclude"], description=ad.description or ""):
+                if has_exclude_terms(
+                    ad.title, qconf["exclude"], description=ad.description or ""
+                ):
                     continue
                 matches.append(ad)
         results[qname] = matches
@@ -341,12 +414,14 @@ def main():
     coverage = analyze_coverage(pool)
 
     for portal_name, stats in coverage["per_portal"].items():
-        safe_print(f"\n{portal_name}: {stats['matched']}/{stats['total']} matched ({stats['unmatched']} unmatched)")
+        safe_print(
+            f"\n{portal_name}: {stats['matched']}/{stats['total']} matched ({stats['unmatched']} unmatched)"
+        )
         safe_print("  Top topics:")
         for topic, count in list(coverage["per_topic"][portal_name].items())[:15]:
             safe_print(f"    {topic}: {count}")
         if coverage["unmatched"][portal_name]:
-            safe_print(f"  Unmatched titles (first 10):")
+            safe_print("  Unmatched titles (first 10):")
             for t in coverage["unmatched"][portal_name][:10]:
                 safe_print(f"    - {t}")
 
@@ -369,12 +444,34 @@ def main():
 
     # Which MCP queries cover which legacy topic areas
     topic_areas = {
-        "python_jobs": ["python", "developer", "programator", "vyvojar", "data analyst", "machine learning",
-                       "data mining", "scraping", "automatizace", "big data", "strojove uceni",
-                       "python automation", "web scraping", "etl pipeline", "crawler"],
+        "python_jobs": [
+            "python",
+            "developer",
+            "programator",
+            "vyvojar",
+            "data analyst",
+            "machine learning",
+            "data mining",
+            "scraping",
+            "automatizace",
+            "big data",
+            "strojove uceni",
+            "python automation",
+            "web scraping",
+            "etl pipeline",
+            "crawler",
+        ],
         "cnc_jobs": ["cnc", "frezar", "programovani", "serizovani", "operator cnc"],
-        "elektrikar": ["elektrikar", "elektroinstalace", "autoelektrikar", "zapojeni", "oprava elektriny",
-                      "solar", "fotovoltaika", "offgrid"],
+        "elektrikar": [
+            "elektrikar",
+            "elektroinstalace",
+            "autoelektrikar",
+            "zapojeni",
+            "oprava elektriny",
+            "solar",
+            "fotovoltaika",
+            "offgrid",
+        ],
     }
 
     legacy_area_hits = {}
@@ -388,9 +485,11 @@ def main():
 
     mcp_hits = {q: len(v) for q, v in mcp_results.items()}
 
-    safe_print(f"\nCoverage comparison (legacy topics vs MCP queries):")
-    safe_print(f"{'Area':<20} {'Legacy hits':<15} {'MCP hits':<15} {'Capture rate':<15}")
-    safe_print(f"{'-'*20} {'-'*15} {'-'*15} {'-'*15}")
+    safe_print("\nCoverage comparison (legacy topics vs MCP queries):")
+    safe_print(
+        f"{'Area':<20} {'Legacy hits':<15} {'MCP hits':<15} {'Capture rate':<15}"
+    )
+    safe_print(f"{'-' * 20} {'-' * 15} {'-' * 15} {'-' * 15}")
     for area in ["python_jobs", "cnc_jobs", "elektrikar"]:
         lh = legacy_area_hits.get(area, 0)
         mh = mcp_hits.get(area, 0)
@@ -399,26 +498,33 @@ def main():
 
     total_legacy = sum(v["matched"] for v in coverage["per_portal"].values())
     total_mcp = sum(len(v) for v in mcp_results.values())
-    safe_print(f"\n{'TOTAL':<20} {total_legacy:<15} {total_mcp:<15} {(total_mcp/total_legacy*100 if total_legacy else 0):.0f}%")
+    safe_print(
+        f"\n{'TOTAL':<20} {total_legacy:<15} {total_mcp:<15} {(total_mcp / total_legacy * 100 if total_legacy else 0):.0f}%"
+    )
 
     # Phase 4: Missing keywords
     all_legacy_topics_found = set()
     for tc in coverage["per_topic"].values():
         all_legacy_topics_found.update(tc.keys())
 
-    safe_print(f"\nLegacy topics WITH matches BUT no MCP query covering them:")
+    safe_print("\nLegacy topics WITH matches BUT no MCP query covering them:")
     mcp_covered_keywords = set()
     for kw_list in topic_areas.values():
         mcp_covered_keywords.update(kw_list)
 
-    uncovered = [t for t in all_legacy_topics_found
-                 if not any(kw in t for kw in mcp_covered_keywords)]
+    uncovered = [
+        t
+        for t in all_legacy_topics_found
+        if not any(kw in t for kw in mcp_covered_keywords)
+    ]
     for t in sorted(uncovered)[:25]:
         total_hits = sum(coverage["per_topic"].get(p, {}).get(t, 0) for p in pool)
         safe_print(f"  {t}: {total_hits} hits across all portals")
 
     # Save report
-    out_path = Path(__file__).resolve().parent.parent / "data" / "comparison_report.json"
+    out_path = (
+        Path(__file__).resolve().parent.parent / "data" / "comparison_report.json"
+    )
     report = {
         "pool_sizes": {p: len(v) for p, v in pool.items()},
         "legacy_coverage": coverage["per_portal"],

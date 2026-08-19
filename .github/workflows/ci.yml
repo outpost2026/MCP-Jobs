@@ -37,8 +37,8 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
       - name: Lint
-        run: ruff check src/ scripts/healthcheck.py
+        run: ruff check .
       - name: Create test database
         run: python -X utf8 -c "import os, psycopg; admin = os.environ['DATABASE_URL'].rsplit('/', 1)[0] + '/postgres'; c = psycopg.connect(admin, autocommit=True); c.execute('CREATE DATABASE mcpjobs_test'); c.close()"
       - name: Test
-        run: pytest -q
+        run: pytest -q --cov=mcp_jobs --cov-report=term-missing --cov-fail-under=70

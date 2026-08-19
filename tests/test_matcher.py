@@ -1,13 +1,13 @@
 import pytest
+
 from mcp_jobs.matcher import (
     Matcher,
-    matches_ad,
     evaluate_boolean,
+    matches_ad,
     parse_boolean,
     validate_boolean,
 )
 from mcp_jobs.models import Ad
-
 
 # ── Old Matcher backward compat ────────────────────────────────────────
 

@@ -6,8 +6,8 @@ import json
 import logging
 import sys
 import time
-from pathlib import Path
 from collections import Counter, defaultdict
+from pathlib import Path
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -31,8 +31,8 @@ class TimedPipeline(SearchPipeline):
         self.provider_stats: dict[str, dict] = {}
 
     def _scrape_all(self) -> tuple[list, dict, dict]:
-        from mcp_jobs.providers import REGISTRY
         from mcp_jobs.pipeline import _dedup as dd
+        from mcp_jobs.providers import REGISTRY
 
         pool = []
         for portal_name, pconf in self.config.portals.items():
@@ -82,9 +82,8 @@ def main() -> None:
     print(f"=== MCP-Jobs ETL Metrics | {ts} ===", file=sys.stderr)
 
     # ── Config overview ──
-    total_categories = sum(len(p.categories or []) for p in config.portals.values())
     print(file=sys.stderr)
-    print(f"Configuration:", file=sys.stderr)
+    print("Configuration:", file=sys.stderr)
     print(
         f"  Portals enabled: {sum(1 for p in config.portals.values() if p.enabled)}",
         file=sys.stderr,
@@ -105,7 +104,7 @@ def main() -> None:
 
     # ── Run pipeline ──
     print(file=sys.stderr)
-    print(f"Running pipeline...", file=sys.stderr)
+    print("Running pipeline...", file=sys.stderr)
     pipeline_start = time.time()
     pipeline = TimedPipeline(config)
     results, _scraper_stats, pool_sizes = pipeline.run()
@@ -144,7 +143,7 @@ def main() -> None:
 
     # Per-query summary
     print(file=sys.stderr)
-    print(f"Results:", file=sys.stderr)
+    print("Results:", file=sys.stderr)
     print(f"  Total elapsed: {pipeline_elapsed:.1f}s", file=sys.stderr)
     print(f"  Total matched: {total_ads}", file=sys.stderr)
 
@@ -158,7 +157,7 @@ def main() -> None:
         print(f"  {qname}: {len(ads)} [{', '.join(portals)}]", file=sys.stderr)
 
     print(file=sys.stderr)
-    print(f"Per-provider timing:", file=sys.stderr)
+    print("Per-provider timing:", file=sys.stderr)
     for name, agg in sorted(provider_agg.items()):
         avg = agg["elapsed"] / max(agg["calls"], 1)
         print(
@@ -223,7 +222,7 @@ def main() -> None:
     # ── Comparison with legacy ──
     print(file=sys.stderr)
     print(f"{'=' * 60}", file=sys.stderr)
-    print(f"COMPARISON: MCP-Jobs vs Legacy", file=sys.stderr)
+    print("COMPARISON: MCP-Jobs vs Legacy", file=sys.stderr)
     print(f"{'=' * 60}", file=sys.stderr)
     print(f"{'Metric':<35} {'MCP-Jobs':<15} {'Legacy':<15}", file=sys.stderr)
     print(f"{'-' * 65}", file=sys.stderr)

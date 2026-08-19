@@ -10,7 +10,7 @@
 
 # MCP-Jobs
 
-MCP server for scraping Czech job portals with boolean matching, exclude lists, location/salary filters and **PostgreSQL persistence**. Successor to legacy scrapers — **5.8× faster**, config-driven, **141 unit tests**, production hardening.
+MCP server for scraping Czech job portals with boolean matching, exclude lists, location/salary filters and **PostgreSQL persistence**. Successor to legacy scrapers — **5.8× faster**, config-driven, **148 unit tests**, production hardening.
 
 ## Features
 
@@ -24,7 +24,7 @@ MCP server for scraping Czech job portals with boolean matching, exclude lists, 
 - **Pages guard** — max 50 pages per call (resource abuse prevention)
 - **Auto-validation** — boolean expressions validated at config load time (fail-fast)
 - **MCP-native** — stdio transport, FastMCP SDK, ready for AI agent integration
-- **141 unit tests** — pytest, full coverage of matcher, pipeline, providers, config, DB persistence
+- **148 unit tests** — pytest, full coverage of matcher, pipeline, providers, config, DB persistence
 - **Structured logging** — per-card skip count, 0-ads alert, no silent failures
 - **MCP L3 Prompts** — `search_expert` prompt for natural language to boolean query conversion
 - **PostgreSQL persistence (Phase 1)** — schema.sql (DDL), URL UNIQUE + ON CONFLICT dedup, run audit (pipeline_runs), graceful degradation (DB down → pipeline keeps running, just no writes)
@@ -78,7 +78,7 @@ docker compose up -d
 copy .env.example .env   # set DATABASE_URL=postgres://mcpjobs:mcpjobs@localhost:5432/mcpjobs
 # or: scripts\db.ps1 (restart, psql, logs)
 
-# Tests (141 tests; DB tests run against mcpjobs_test, skipped otherwise)
+# Tests (148 tests; DB tests run against mcpjobs_test, skipped otherwise)
 pytest tests/ -v
 
 # ETL pipeline
@@ -171,7 +171,7 @@ Each ETL run generates JSON with per-provider timing:
 | Per-provider bazos | ~80 s | **~12 s** | **6.7× faster** |
 | Per-provider jobs | ~40 s | **~8 s** | **5.0× faster** |
 | Per-provider pracecz | ~60 s | **~16 s** | **3.8× faster** |
-| Unit tests | 0 | **141** | — |
+| Unit tests | 0 | **148** | — |
 | Rate limiting | `sleep(1.0-2.5)` random | **0.5s precise delay** | ToS compliant |
 
 ### Key Improvements v0.3.1 → v0.4.0 (Iteration 3→8)
@@ -184,7 +184,7 @@ Each ETL run generates JSON with per-provider timing:
 | Boolean validation | runtime only | **config-load time** |
 | MCP error reporting | inconsistent | **unified `[{"error":...}]`** |
 | Config error messages | raw TypeError | **user-friendly** |
-| Test count | 97 | **141** |
+| Test count | 97 | **148** |
 | Inline import in loop | yes | **top-level** |
 | Silent errors | yes | **eliminated via logger** (http/storage/base) |
 | Persistence | in-memory | **query_store.json + correlation_cache.json + PostgreSQL** (Phase 1) |
@@ -209,7 +209,7 @@ Each ETL run generates JSON with per-provider timing:
 | Output | CSV+MD per portal | Unified JSON |
 | Protocol | None | MCP (Model Context Protocol) |
 | Prompts | N/A | `search_expert` (MCP L3) |
-| Tests | 0 | **141 pytest** |
+| Tests | 0 | **148 pytest** |
 | Detail fetch | sequential | **parallel** (ThreadPoolExecutor) |
 | Security | none | **domain allowlist** (SSRF protection) |
 
@@ -226,6 +226,8 @@ ETL runs persist to PostgreSQL 16 (optional — without DB the pipeline keeps ru
 | `scripts/db.ps1` | restart/psql/logs/dedup check |
 
 Test isolation (P73): DB tests run against `mcpjobs_test` (derived from `DATABASE_URL`), hard guard refuses TRUNCATE on non-test DB. Without a resolvable DATABASE_URL the DB tests are skipped.
+
+**Dual-write is intentional redundancy (decision 2026-08-19):** `storage.py` (unified `output/etl_*.{json,md,html}`) and `db.py` (PostgreSQL) run in parallel — JSON artifacts serve as instant, human/LLM-readable outputs (CLI/LLM consumption), PostgreSQL is the structured persistence for the standalone web (Phase 2, Next.js reads from DB). Neither is "legacy" — both write the same data, each for a different consumer. Web reads go exclusively from the DB.
 
 ## MCP Maturity
 
@@ -264,7 +266,7 @@ Test isolation (P73): DB tests run against `mcpjobs_test` (derived from `DATABAS
 | Area | Status |
 |------|--------|
 | Version | 0.4.0 (Phase 1 standalone pivot) |
-| Tests | 141/141 PASS (locally; 2 encoding harness tests fixed 2026-08-19) |
+| Tests | 148/148 PASS (locally; 2 encoding harness tests fixed 2026-08-19) |
 | PostgreSQL | ✅ Phase 1 done: schema, docker-compose, db.py, .env self-contained, P73 isolation |
 | Output | ✅ Unified `etl_{PROFILE}_{ts}.{json,md,html}` (Storage.save_outputs, dedup on normalized content) |
 | CI | ✅ Fixed 2026-08-19: create test DB step in ci.yml (P73); push for verification |

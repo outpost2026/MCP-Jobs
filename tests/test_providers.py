@@ -1,9 +1,8 @@
 from mcp_jobs.models import Ad
+from mcp_jobs.providers import ACTIVE_PORTALS
 from mcp_jobs.providers.bazos import BazosScraper
 from mcp_jobs.providers.jobs import JobsScraper
 from mcp_jobs.providers.pracecz import PraceczScraper
-from mcp_jobs.providers import ACTIVE_PORTALS
-
 
 BAZOS_HTML = """
 <div class="inzeraty">

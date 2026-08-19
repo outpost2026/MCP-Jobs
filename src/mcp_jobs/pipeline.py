@@ -4,12 +4,12 @@ import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from urllib.parse import urlparse
 
 from .config import PortalConfig, UserConfig
 from .matcher import has_exclude_terms, matches_ad
 from .models import Ad
 from .providers import REGISTRY
+from .providers.base import is_url_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -215,7 +215,8 @@ class SearchPipeline:
 
         provider_cls = REGISTRY.get(portal_name)
         provider = provider_cls(
-            http_client=HttpClient(request_delay=self.config.pipeline.request_delay)
+            http_client=HttpClient(request_delay=self.config.pipeline.request_delay),
+            url_allowlist=set(self.config.pipeline.url_allowlist),
         )
         pool: list[Ad] = []
         for cat in pconf.categories:
@@ -236,20 +237,20 @@ class SearchPipeline:
             stats = sd
         return portal_name, pool, stats
 
-    @staticmethod
-    def _validate_url(url: str, allowed: set[str]) -> bool:
-        """SEC-001: Overi, ze URL patri do allowlist domen."""
-        if not allowed:
-            return True  # Prazdna allowlist = bez validace (testy).
-        try:
-            host = urlparse(url).hostname or ""
-        except Exception:
-            return False
-        return any(host == d or host.endswith("." + d) for d in allowed)
-
     def _scrape_all(self) -> tuple[list[Ad], dict[str, dict], dict[str, int]]:
         pool: list[Ad] = []
         all_stats: dict[str, dict] = {}
+
+        # Neznamy portal v configu (neregistrovany provider) — upozorni,
+        # aby se config drift (jako drive osirely nyx:) neprehlednul.
+        for name, pconf in self.config.portals.items():
+            if pconf.enabled and not REGISTRY.get(name):
+                logger.warning(
+                    "Config portal %r is not in provider REGISTRY (%s) — "
+                    "skipping (enabled but unknown portal)",
+                    name,
+                    sorted(REGISTRY),
+                )
 
         tasks = [
             (name, pconf)
@@ -261,7 +262,7 @@ class SearchPipeline:
         allowed = set(self.config.pipeline.url_allowlist)
         for name, pconf in tasks:
             for cat in pconf.categories:
-                if not self._validate_url(cat.url, allowed):
+                if not is_url_allowed(cat.url, allowed):
                     logger.error(
                         "BLOCKED: category URL %r for portal %r is not in "
                         "allowed domains: %s",

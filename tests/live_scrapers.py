@@ -1,4 +1,4 @@
-"""
+﻿"""
 Live integration test — scrapes all CZ portals and saves results to data/.
 Run with: python tests/test_live_scrapers.py [--save]
 """
@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from mcp_jobs.utils import ensure_utf8_stdout
@@ -19,8 +19,6 @@ REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from mcp_jobs.providers import REGISTRY
-from mcp_jobs.http import HttpClient
-
 
 QUERIES = {
     "bazos": "python",
@@ -45,7 +43,7 @@ def test_scraper(name: str, query: str, save: bool = False) -> dict:
         "portal": name,
         "query": query,
         "search_url": search_url,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "status": "unknown",
         "ads": [],
         "ad_count": 0,
@@ -68,9 +66,10 @@ def test_scraper(name: str, query: str, save: bool = False) -> dict:
     # Save raw HTML (always when --save, even for empty responses)
     if save:
         html_path = (
-            raw_dir / f"raw_{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            raw_dir
+            / f"raw_{name}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.html"
         )
-        raw_content = text if text else ""
+        raw_content = text or ""
         html_path.write_text(raw_content, encoding="utf-8")
         result["raw_html_saved"] = True
         result["raw_html_size"] = len(raw_content)
@@ -79,7 +78,7 @@ def test_scraper(name: str, query: str, save: bool = False) -> dict:
     if not text:
         result["status"] = "empty_response"
         result["error"] = "No text returned from HTTP GET"
-        print(f"  [ERR] EMPTY RESPONSE")
+        print("  [ERR] EMPTY RESPONSE")
         return result
 
     # Parse listings
@@ -116,7 +115,8 @@ def test_scraper(name: str, query: str, save: bool = False) -> dict:
     # Save results JSON
     if save:
         json_path = (
-            raw_dir / f"results_{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            raw_dir
+            / f"results_{name}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
         )
         json_path.write_text(
             json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -136,7 +136,7 @@ def main():
         REPO_ROOT
         / "data"
         / "logs"
-        / f"live_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        / f"live_test_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
     )
 
     for name, query in QUERIES.items():
@@ -146,7 +146,7 @@ def main():
             time.sleep(1.5)
 
     print(f"\n{'=' * 60}")
-    print(f"  SUMMARY")
+    print("  SUMMARY")
     print(f"{'=' * 60}")
     all_ok = True
     for name, r in results.items():
@@ -166,7 +166,7 @@ def main():
             all_ok = False
 
     summary = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "summary": {
             n: {
                 "status": r["status"],

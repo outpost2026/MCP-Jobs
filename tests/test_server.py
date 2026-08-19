@@ -2,15 +2,15 @@ import json
 
 from mcp_jobs import __version__
 from mcp_jobs.server import (
-    mcp,
-    list_portals,
-    PORTAL_ALIASES,
     ACTIVE_PORTALS,
+    PORTAL_ALIASES,
     _query_store,
     _store_results,
-    list_ads_resources,
-    get_ads_resource,
     get_ads_report_resource,
+    get_ads_resource,
+    list_ads_resources,
+    list_portals,
+    mcp,
 )
 
 
@@ -143,8 +143,8 @@ def test_search_expert_with_exclude():
 
 def test_search_expert_multi_word_exclude_valid():
     """Multi-word exclude terms must be parenthesized AND-joined, not 'NOT a b' (parse error)."""
+    from mcp_jobs.matcher import evaluate_boolean, validate_boolean
     from mcp_jobs.server import search_expert
-    from mcp_jobs.matcher import validate_boolean, evaluate_boolean
 
     result = search_expert("python developer", exclude_terms="hledam praci,senior")
     content = result[0]["content"]
@@ -231,7 +231,7 @@ def test_get_ads_report_resource():
 
 def test_store_results_empty_list():
     _query_store.clear()
-    qid = _store_results([])
+    _store_results([])
     listing = json.loads(list_ads_resources())
     assert len(listing) == 1
     assert listing[0]["query_count"] == 0

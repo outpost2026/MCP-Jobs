@@ -3,6 +3,7 @@ Pipeline analysis — runs config.yaml through the full pipeline,
 captures all results, debug info, anomalies, and writes a structured
 report to data/.
 """
+
 from __future__ import annotations
 
 import json
@@ -10,7 +11,7 @@ import sys
 import time
 import traceback
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
@@ -18,7 +19,6 @@ _ROOT = _HERE.parent
 sys.path.insert(0, str(_ROOT / "src"))
 
 from mcp_jobs.server import search_from_config
-from mcp_jobs.matcher import strip_diacritics
 
 DATA_DIR = _ROOT / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -26,9 +26,9 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_PATH = _ROOT / "config.yaml"
 
 report = {
-    "run_id": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S"),
+    "run_id": datetime.now(UTC).strftime("%Y%m%dT%H%M%S"),
     "config_file": str(CONFIG_PATH),
-    "started_at": datetime.now(timezone.utc).isoformat(),
+    "started_at": datetime.now(UTC).isoformat(),
     "phases": [],
     "queries": [],
     "anomalies": [],
@@ -37,15 +37,33 @@ report = {
     "summary": {},
 }
 
+
+def _write_report() -> None:
+    """Save structured report to data/ (pipeline_report_<ts>.json + latest)."""
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    report_file = DATA_DIR / f"pipeline_report_{timestamp}.json"
+    latest_file = DATA_DIR / "pipeline_latest.json"
+
+    with open(report_file, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+    with open(latest_file, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+
+    print(f"  {report_file}")
+    print(f"  {latest_file}")
+
+
 def debug(msg: str, **kw):
     entry = {"msg": msg, **kw}
     report["debug"].append(entry)
     print(f"  DEBUG: {msg}")
 
+
 def anomaly(msg: str, **kw):
     entry = {"msg": msg, **kw}
     report["anomalies"].append(entry)
     print(f"  ANOMALY: {msg}")
+
 
 # ── Parse config ───────────────────────────────────
 print("=" * 60)
@@ -86,7 +104,9 @@ for entry in results:
 
     if "message" in entry:
         print(f"\n  [{qname}] {entry['message']}")
-        report["queries"].append({"query": qname, "total": 0, "message": entry["message"]})
+        report["queries"].append(
+            {"query": qname, "total": 0, "message": entry["message"]}
+        )
         debug(f"Query '{qname}' returned no results — boolean too strict or empty pool")
         continue
 
@@ -145,18 +165,20 @@ for entry in results:
         anomaly(f"Query '{qname}': missing fields: {dict(missing_fields)}")
 
     if not errors and total == 0:
-        anomaly(f"Query '{qname}': 0 results — possible causes: boolean too strict, wrong portal filter, empty category pool")
+        anomaly(
+            f"Query '{qname}': 0 results — possible causes: boolean too strict, wrong portal filter, empty category pool"
+        )
 
     # Show top results
     for i, ad in enumerate(ads[:5], 1):
         loc = ad.get("location") or ad.get("price") or ""
         print(f"    {i}. {ad['title']}")
-        print(f"       portal={ad['portal']} company={ad.get('company','?')} {loc}")
-        if "matched_keyword" in ad and ad["matched_keyword"]:
+        print(f"       portal={ad['portal']} company={ad.get('company', '?')} {loc}")
+        if ad.get("matched_keyword"):
             print(f"       keyword={ad['matched_keyword']}")
 
     if len(ads) > 5:
-        print(f"       ... and {len(ads)-5} more")
+        print(f"       ... and {len(ads) - 5} more")
 
 # ── Portal-level stats ─────────────────────────────
 print("\n--- Portal scrape stats ---")
@@ -191,7 +213,9 @@ print()
 print("=" * 60)
 print("  SUMMARY")
 print("=" * 60)
-print(f"  Queries:         {query_count} total, {query_with_results} with results, {query_with_errors} with errors")
+print(
+    f"  Queries:         {query_count} total, {query_with_results} with results, {query_with_errors} with errors"
+)
 print(f"  Total ads:       {total_ads}")
 print(f"  Anomalies:       {len(report['anomalies'])}")
 print(f"  Elapsed:         {report['elapsed_seconds']}s")
@@ -204,18 +228,8 @@ if report["anomalies"]:
         print(f"    - {a['msg']}")
 
 print()
-print(f"  Full report saved to data/")
+print("  Full report saved to data/")
 
 # ── Save report ────────────────────────────────────
-timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-report_file = DATA_DIR / f"pipeline_report_{timestamp}.json"
-latest_file = DATA_DIR / "pipeline_latest.json"
-
-with open(report_file, "w", encoding="utf-8") as f:
-    json.dump(report, f, ensure_ascii=False, indent=2)
-with open(latest_file, "w", encoding="utf-8") as f:
-    json.dump(report, f, ensure_ascii=False, indent=2)
-
-print(f"  {report_file}")
-print(f"  {latest_file}")
+_write_report()
 print("=" * 60)

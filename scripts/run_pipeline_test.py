@@ -5,7 +5,7 @@ and logs results to data/pipeline_test_log.json
 import json
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -14,7 +14,7 @@ from mcp_jobs.config import UserConfig
 from mcp_jobs.pipeline import SearchPipeline
 
 LOG = Path(__file__).resolve().parent.parent / "data" / "pipeline_test_log.json"
-log_data = {"run_id": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S"), "phases": []}
+log_data = {"run_id": datetime.now(UTC).strftime("%Y%m%dT%H%M%S"), "phases": []}
 
 config = UserConfig.from_yaml(Path(__file__).resolve().parent.parent / "config.yaml")
 pipeline = SearchPipeline(config)
@@ -47,7 +47,7 @@ for qname, ads in results.items():
         if a.company:
             print(f"    company={a.company}")
         if excl_hit:
-            print(f"    ** WOULD BE EXCLUDED **")
+            print("    ** WOULD BE EXCLUDED **")
     print()
 
 log_data["queries"] = {qname: [a.to_dict() for a in ads] for qname, ads in results.items()}

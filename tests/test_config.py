@@ -1,8 +1,6 @@
 from pathlib import Path
 
-import yaml
-
-from mcp_jobs.config import UserConfig, PortalConfig, CategoryConfig, QueryConfig
+from mcp_jobs.config import UserConfig
 
 SAMPLE_YAML = """
 user: test_user
@@ -152,8 +150,9 @@ def test_from_yaml_string_invalid_yaml():
 
 def test_from_yaml_malformed_boolean_fails_fast():
     """Malformed boolean expression now raises ValueError (fail-fast, M1 fix)."""
-    from pathlib import Path
     import tempfile
+    from pathlib import Path
+
     import pytest
 
     yaml = """

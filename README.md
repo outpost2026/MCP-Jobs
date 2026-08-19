@@ -1,4 +1,4 @@
-<div align="left">
+﻿<div align="left">
   <a href="https://github.com/outpost2026/MCP-Jobs/blob/main/README.md">
     <img src="https://flagcdn.com/24x18/cz.png" alt="CZ" height="18"> Česky
   </a>
@@ -10,7 +10,7 @@
 
 # MCP-Jobs
 
-MCP server pro scraping českých pracovních portálů s boolean matchingem, exclude listy, location/salary filtry a **PostgreSQL perzistencí**. Nástupce legacy scrapers — **5.8× rychlejší**, config-driven, **141 unit testů**, hardening pro produkční nasazení.
+MCP server pro scraping českých pracovních portálů s boolean matchingem, exclude listy, location/salary filtry a **PostgreSQL perzistencí**. Nástupce legacy scrapers — **5.8× rychlejší**, config-driven, **148 unit testů**, hardening pro produkční nasazení.
 
 ## Features
 
@@ -24,7 +24,7 @@ MCP server pro scraping českých pracovních portálů s boolean matchingem, ex
 - **Pages guard** — max 50 stránek na volání (resource abuse prevence)
 - **Auto-validace boolean výrazů** — fail-fast při malformed configu
 - **MCP-native** — stdio transport, FastMCP SDK, ready pro AI agent integraci
-- **141 unit testů** — pytest, plné pokrytí matcheru, pipeline, providerů, configu, DB perzistence
+- **148 unit testů** — pytest, plné pokrytí matcheru, pipeline, providerů, configu, DB perzistence
 - **Structured logging** — per-card skip count, 0-ads alert, žádné silent failures
 - **MCP L3 Prompts** — `search_expert` prompt pro převod přirozeného jazyka na boolean query
 - **PostgreSQL persistence (Faze 1)** — schema.sql (DDL), dedup přes URL UNIQUE + ON CONFLICT, run audit (pipeline_runs), graceful degradation (DB nedostupná → pipeline běží dál, jen bez zápisu)
@@ -78,7 +78,7 @@ docker compose up -d
 copy .env.example .env   # nastav DATABASE_URL=postgres://mcpjobs:mcpjobs@localhost:5432/mcpjobs
 # nebo: scripts\db.ps1 (restart, psql, logy)
 
-# Testy (141 testů; DB testy běží na mcpjobs_test, jinak se skipnou)
+# Testy (148 testů; DB testy běží na mcpjobs_test, jinak se skipnou)
 pytest tests/ -v
 
 # ETL pipeline
@@ -173,7 +173,7 @@ Každý ETL běh generuje JSON s per-provider timingem:
 | Per-provider bazos | ~80 s | **~12 s** | **6.7× faster** |
 | Per-provider jobs | ~40 s | **~8 s** | **5.0× faster** |
 | Per-provider pracecz | ~60 s | **~16 s** | **3.8× faster** |
-| Unit tests | 0 | **141** | — |
+| Unit tests | 0 | **148** | — |
 | Rate limiting | `sleep(1.0-2.5)` | **0.5s přesný delay** | ToS compliant |
 
 ### Hlavní vylepšení oproti v0.3.1 (Iteration 3→8)
@@ -186,7 +186,7 @@ Každý ETL běh generuje JSON s per-provider timingem:
 | Boolean validation | runtime only | **config-load time** |
 | MCP error reporting | inconsistent | **unified `[{"error":...}]`** |
 | Config error messages | raw TypeError | **user-friendly** |
-| Test count | 97 | **141** |
+| Test count | 97 | **148** |
 | Inline import v loopu | ano | **top-level** |
 | Silent errors | ano | **eliminovány loggerem** (http/storage/base) |
 | Persistence | in-memory | **query_store.json + correlation_cache.json + PostgreSQL** (Faze 1) |
@@ -211,7 +211,7 @@ Každý ETL běh generuje JSON s per-provider timingem:
 | Output | CSV+MD per portal | Unified JSON |
 | Protokol | Žádný | MCP (Model Context Protocol) |
 | Prompty | N/A | `search_expert` (MCP L3) |
-| Testy | 0 | **141 pytestů** |
+| Testy | 0 | **148 pytestů** |
 | Detail fetch | sequential | **parallel** (ThreadPoolExecutor) |
 | Security | none | **domain allowlist** (SSRF protection) |
 
@@ -228,6 +228,8 @@ ETL běh ukládá data do PostgreSQL 16 (volitelné — bez DB pipeline běží 
 | `scripts/db.ps1` | restart/psql/logy/dedup check |
 
 Test izolace (P73): DB testy běží proti `mcpjobs_test` (odvozeno z `DATABASE_URL`), hard-guard odmítá TRUNCATE na non-test DB. Bez dostupného DATABASE_URL se DB testy skipnou.
+
+**Dual-write je záměrná redundance (rozhodnutí 2026-08-19):** `storage.py` (unified `output/etl_*.{json,md,html}`) i `db.py` (PostgreSQL) běží souběžně — JSON artefakty slouží jako instantní, strojově i lidsky čitelné výstupy (LLM/CLI konzumace), PostgreSQL je strukturovaná perzistence pro standalone web (Fáze 2, Next.js čte z DB). Žádný z nich není "starý" — oba zapisují stejná data, každý pro jiného konzumenta. Čtení pro web jde výhradně z DB.
 
 ## MCP Maturity
 
@@ -266,7 +268,7 @@ Test izolace (P73): DB testy běží proti `mcpjobs_test` (odvozeno z `DATABASE_
 | Oblast | Stav |
 |--------|------|
 | Verze | 0.4.0 (Faze 1 standalone pivot) |
-| Testy | 141/141 PASS (lokálně; 2 encoding harness testy opraveny 2026-08-19) |
+| Testy | 148/148 PASS (lokálně; 2 encoding harness testy opraveny 2026-08-19) |
 | PostgreSQL | ✅ Faze 1 done: schema, docker-compose, db.py, .env self-contained, P73 izolace |
 | Output | ✅ Unified `etl_{PROFILE}_{ts}.{json,md,html}` (Storage.save_outputs, dedup na normalizovaném obsahu) |
 | CI | ✅ Opraveno 2026-08-19: create test DB krok v ci.yml (P73); push k ověření |

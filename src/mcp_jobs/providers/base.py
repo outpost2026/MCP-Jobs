@@ -6,11 +6,27 @@ import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from urllib.parse import urlparse
 
 from ..http import HttpClient
 from ..models import Ad
 
 logger = logging.getLogger(__name__)
+
+
+def is_url_allowed(url: str, allowed: set[str]) -> bool:
+    """SEC-001: Overi, ze URL patri do allowlist domen.
+
+    Prazdna allowlist = bez validace (testy). Podporuje subdomeny
+    (host == d nebo host konci na .d).
+    """
+    if not allowed:
+        return True
+    try:
+        host = urlparse(url).hostname or ""
+    except Exception:
+        return False
+    return any(host == d or host.endswith("." + d) for d in allowed)
 
 
 @dataclass
@@ -51,13 +67,23 @@ class ScraperRunStats:
 
 
 class BaseScraper(ABC):
-    def __init__(self, http_client: HttpClient | None = None):
+    def __init__(
+        self,
+        http_client: HttpClient | None = None,
+        url_allowlist: set[str] | None = None,
+    ):
         self.http = http_client or HttpClient()
+        self._url_allowlist: set[str] = url_allowlist or set()
         self.stats = ScraperRunStats(portal=self.name)
 
     def _fetch_page(self, url: str) -> str | None:
         # THREAD-SAFE: Kazde vlaskno ma vlastni provider + HttpClient instanci
         # (pipeline._scrape_one). Stats NENI sdilen mezi vlakny.
+        if not is_url_allowed(url, self._url_allowlist):
+            logger.warning(
+                "BLOCKED: URL %r is not in allowed domains, fetch skipped", url
+            )
+            return None
         start = time.perf_counter()
         text = self.http.get_text(url)
         elapsed_ms = (time.perf_counter() - start) * 1000

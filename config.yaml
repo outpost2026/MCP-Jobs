@@ -38,10 +38,6 @@ portals:
       - url: "https://www.prace.cz/nabidky/hlavni-mesto-praha/praha/"
         pages: 25
 
-  nyx:
-    enabled: false
-    categories: []
-
 # ── Společný exclude pool (odfiltruje nabídky služeb / osobní inzeráty) ──
 _x_exclude: &_x_exclude
   - agentura

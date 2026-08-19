@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import json
 import sys
-import traceback
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -19,19 +18,17 @@ _HERE = Path(__file__).resolve().parent
 _ROOT = _HERE.parent
 sys.path.insert(0, str(_ROOT / "src"))
 
-from mcp_jobs.server import (
-    search_jobs_v2,
-    search_from_yaml,
-    search_from_config,
-    list_portals,
-    PORTAL_ALIASES,
-    ACTIVE_PORTALS,
-)
-from mcp_jobs.matcher import matches_ad, evaluate_boolean, strip_diacritics
+from mcp_jobs.matcher import matches_ad, strip_diacritics
 from mcp_jobs.models import Ad
-from mcp_jobs.config import UserConfig
-from mcp_jobs.pipeline import SearchPipeline
 from mcp_jobs.providers import REGISTRY
+from mcp_jobs.server import (
+    ACTIVE_PORTALS,
+    PORTAL_ALIASES,
+    list_portals,
+    search_from_config,
+    search_from_yaml,
+    search_jobs_v2,
+)
 
 DATA_DIR = _ROOT / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -44,7 +41,7 @@ PHASE = "00-UNSET"
 
 def log(event: str, detail: str = "", **kw: Any) -> None:
     entry = {
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(UTC).isoformat(),
         "phase": PHASE,
         "event": event,
         "detail": detail,
@@ -73,7 +70,7 @@ pages_label = "1" if QUICK else "2"
 
 # ═══════════════════════════════════════════════════════
 PHASE = "01-SERVER-META"
-log(f"Live test run — {datetime.now(timezone.utc).isoformat()}")
+log(f"Live test run — {datetime.now(UTC).isoformat()}")
 log(f"Mode: {'quick' if QUICK else 'full'}, pages={pages_label}")
 
 p = list_portals()
@@ -383,7 +380,7 @@ passes = [e for e in LOG if e["event"].startswith("PASS:")]
 fails = [e for e in LOG if e["event"].startswith("FAIL:")]
 
 summary = {
-    "run_id": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S"),
+    "run_id": datetime.now(UTC).strftime("%Y%m%dT%H%M%S"),
     "mode": "quick" if QUICK else "full",
     "pages": PAGES,
     "total_checks": len(passes) + len(fails),
@@ -418,7 +415,7 @@ print(f"  Verdict: {summary['verdict']}")
 print("=" * 60)
 
 # ── Save results ────────────────────────────────────
-timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 log_file = DATA_DIR / f"livetest_{timestamp}.json"
 summary_file = DATA_DIR / "livetest_latest.json"
 
@@ -428,7 +425,7 @@ with open(log_file, "w", encoding="utf-8") as f:
 with open(summary_file, "w", encoding="utf-8") as f:
     json.dump({"summary": summary, "log": LOG}, f, ensure_ascii=False, indent=2)
 
-print(f"\nResults saved:")
+print("\nResults saved:")
 print(f"  {log_file}")
 print(f"  {summary_file}")
 

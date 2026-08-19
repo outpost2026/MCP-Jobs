@@ -3,6 +3,7 @@ Test that the exclude mechanism works correctly in the pipeline.
 """
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from mcp_jobs.matcher import has_exclude_terms

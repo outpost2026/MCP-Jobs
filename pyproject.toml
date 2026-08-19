@@ -50,3 +50,9 @@ select = ["E4", "E7", "E9", "F", "W", "I", "UP", "RUF", "PIE", "FURB", "DTZ"]
 # BLE001 (broad except) je ZÁMĚRNÁ graceful degradation scraperů
 # (P4: network/parse selhání nesmí shodit celý běh) — viz SESSION_INJECT.
 ignore = ["BLE001"]
+
+[tool.ruff.lint.per-file-ignores]
+# E402: scripty dělají sys.path.insert(0, src) před importem mcp_jobs —
+# záměrný vzor standalone scriptů (ne moduly).
+"scripts/*.py" = ["E402"]
+"tests/live_scrapers.py" = ["E402"]

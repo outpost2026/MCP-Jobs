@@ -1,10 +1,12 @@
 from mcp_jobs.models import Ad
-from mcp_jobs.pipeline import SearchPipeline, _location_filter, _salary_filter, _dedup
+from mcp_jobs.pipeline import SearchPipeline, _dedup, _location_filter, _salary_filter
 
 
 class FakeProvider:
-    def __init__(self, ads: list[Ad]):
+    def __init__(self, ads: list[Ad], http_client=None, url_allowlist=None):
         self.ads = ads
+        self.http_client = http_client
+        self.url_allowlist = url_allowlist
 
     def scrape_all(self, url: str, max_pages: int = 5) -> list[Ad]:
         return self.ads
@@ -173,9 +175,10 @@ def test_salary_filter_uses_salary_over_price():
 
 def test_empty_boolean_skipped():
     """Empty boolean expression is skipped with warning (does not crash)."""
-    from mcp_jobs.config import UserConfig
+    import tempfile
     from pathlib import Path
-    import tempfile, json
+
+    from mcp_jobs.config import UserConfig
 
     yaml = """
     portals: {}
@@ -202,22 +205,22 @@ def test_parallel_deterministic_same_as_sequential():
     jak determinismus, tak i soubeznost (casove mereni).
     """
     import time
-    from concurrent.futures import ThreadPoolExecutor
-    from mcp_jobs.config import (
-        UserConfig,
-        PortalConfig,
-        CategoryConfig,
-        QueryConfig,
-        PipelineSettings,
-    )
+
     from mcp_jobs import providers as providers_mod
+    from mcp_jobs.config import (
+        CategoryConfig,
+        PipelineSettings,
+        PortalConfig,
+        QueryConfig,
+        UserConfig,
+    )
 
     delay = {"s": 0.05}
 
     class SlowProvider:
         name = "slow"
 
-        def __init__(self, http_client=None):
+        def __init__(self, http_client=None, url_allowlist=None):
             self.stats = type(
                 "FakeStats",
                 (),
@@ -293,15 +296,15 @@ def test_parallel_deterministic_same_as_sequential():
 
 def test_detail_cache_retries_failed_fetch():
     """M2 fix: failed detail fetch is NOT cached, next query retries."""
-    from mcp_jobs.config import UserConfig
     from mcp_jobs import providers as providers_mod
+    from mcp_jobs.config import UserConfig
 
     calls = {"n": 0}
 
     class FlakyProvider:
         name = "flaky"
 
-        def __init__(self, http_client=None):
+        def __init__(self, http_client=None, url_allowlist=None):
             self.stats = type(
                 "FakeStats",
                 (),
@@ -375,3 +378,37 @@ def test_detail_cache_retries_failed_fetch():
             del providers_mod.REGISTRY["flaky"]
         else:
             providers_mod.REGISTRY["flaky"] = orig
+
+
+def test_unknown_portal_warns_and_is_skipped(caplog):
+    """Config drift (neznamy portal, drive osirely nyx:) — warning, ne chyba."""
+    from mcp_jobs.config import (
+        CategoryConfig,
+        PipelineSettings,
+        PortalConfig,
+        QueryConfig,
+        UserConfig,
+    )
+
+    portals = {
+        "ghost": PortalConfig(
+            enabled=True,
+            categories=[CategoryConfig(url="http://x", pages=1)],
+        )
+    }
+    queries = {"q1": QueryConfig(boolean="python")}
+    config = UserConfig(
+        portals=portals,
+        queries=queries,
+        pipeline=PipelineSettings(max_workers=1, url_allowlist=[]),
+    )
+
+    with caplog.at_level("WARNING", logger="mcp_jobs.pipeline"):
+        pipeline = SearchPipeline(config)
+        results, _, _ = pipeline.run()
+
+    assert results == {"q1": []}
+    assert any(
+        "ghost" in r.message and "not in provider REGISTRY" in r.message
+        for r in caplog.records
+    )
