@@ -10,7 +10,7 @@
 
 # MCP-Jobs
 
-MCP server pro scraping českých pracovních portálů s boolean matchingem, exclude listy a location/salary filtry. Nástupce legacy scrapers — **4.5× rychlejší**, config-driven, 131 unit testů, hardening pro produkční nasazení.
+MCP server pro scraping českých pracovních portálů s boolean matchingem, exclude listy, location/salary filtry a **PostgreSQL perzistencí**. Nástupce legacy scrapers — **5.8× rychlejší**, config-driven, **144 unit testů**, hardening pro produkční nasazení.
 
 ## Features
 
@@ -24,9 +24,12 @@ MCP server pro scraping českých pracovních portálů s boolean matchingem, ex
 - **Pages guard** — max 50 stránek na volání (resource abuse prevence)
 - **Auto-validace boolean výrazů** — fail-fast při malformed configu
 - **MCP-native** — stdio transport, FastMCP SDK, ready pro AI agent integraci
-- **131 unit testů** — pytest, plné pokrytí matcheru, pipeline, providerů, configu
+- **144 unit testů** — pytest, plné pokrytí matcheru, pipeline, providerů, configu, DB perzistence
 - **Structured logging** — per-card skip count, 0-ads alert, žádné silent failures
 - **MCP L3 Prompts** — `search_expert` prompt pro převod přirozeného jazyka na boolean query
+- **PostgreSQL persistence (Faze 1)** — schema.sql (DDL), dedup přes URL UNIQUE + ON CONFLICT, run audit (pipeline_runs), graceful degradation (DB nedostupná → pipeline běží dál, jen bez zápisu)
+- **Test DB izolace (P73)** — DB testy míří na `mcpjobs_test` (odvozeno z DATABASE_URL), hard-guard odmítá TRUNCATE na non-test DB
+- **`.env` self-contained** — DATABASE_URL se načítá z `data/../.env` (module root, ne CWD — funguje i z MCP transportu)
 
 ## Architektura
 
@@ -36,8 +39,9 @@ src/mcp_jobs/
 ├── models.py          # Ad dataclass (title, url, portal, desc, company, ...)
 ├── http.py            # HTTP klient s retry, timeout, rate limiting (1.0s delay)
 ├── matcher.py         # Boolean AST evaluator + LRU cache + exclude filter + strip_diacritics
-├── pipeline.py        # SearchPipeline orchestrator (scrape → filter → results)
-├── storage.py         # CSV I/O + RAG index MD generování
+├── pipeline.py        # SearchPipeline orchestrator (scrape → filter → results → persist)
+├── storage.py         # Unified output (etl_{PROFILE}_{ts}.{json,md,html}) + dedup + korelace
+├── db.py              # PostgreSQL persistence (schema.sql, upsert_ads ON CONFLICT, run audit)
 ├── providers/         # Portal-specific scrapers
 │   ├── base.py        # BaseScraper ABC
 │   ├── bazos.py       # Bazos.cz s params podporou (hlokalita, humkreis)
@@ -46,10 +50,16 @@ src/mcp_jobs/
 │   └── nyx.py         # Nyx.cz (deprecated — auth-gated, není job portál)
 ├── server.py          # FastMCP instance + tool registrace + MCP L3 prompt
 └── cli.py             # CLI entry point (stdio MCP transport)
-output/                  # ETL výstupy (JSON, reporty)
+data/
+├── schema.sql         # DDL pro PostgreSQL (ads, pipeline_runs, UNIQUE url)
+└── query_store.json   # Persistence query výstupů
+output/                # ETL výstupy etl_{PROFILE}_{ts}.{json,md,html}
 scripts/
 ├── run_etl.py           # Základní ETL runner
-└── run_etl_metrics.py   # ETL runner s per-provider timingem
+├── run_etl_metrics.py   # ETL runner s per-provider timingem
+├── db.ps1               # DB operace (restart, psql, logy, dedup check)
+└── healthcheck.py       # Healthcheck (dry-mode bez DB)
+docker-compose.yml     # PostgreSQL 16 (volume, schema.sql init, healthcheck)
 ```
 
 ## Quick start
@@ -64,7 +74,12 @@ pip install -e ".[dev]"
 copy config.yaml.example config.yaml
 # Uprav PSČ, radius, query, exclude dle potřeby
 
-# Testy (131 testů)
+# PostgreSQL (volitelné, pro perzistenci)
+docker compose up -d
+copy .env.example .env   # nastav DATABASE_URL=postgres://mcpjobs:mcpjobs@localhost:5432/mcpjobs
+# nebo: scripts\db.ps1 (restart, psql, logy)
+
+# Testy (144 testů; DB testy běží na mcpjobs_test, jinak se skipnou)
 pytest tests/ -v
 
 # ETL pipeline
@@ -121,6 +136,7 @@ queries:
 | `search_jobs_v2` | Boolean search across CZ portals (pages guard: max 50) |
 | `search_from_config` | Full pipeline from YAML file path |
 | `search_from_yaml` | Full pipeline from inline YAML content |
+| `search_status` | Status of background search job (async pipeline) |
 | `list_portals` | Available portals and categories |
 
 ## Prompts
@@ -158,7 +174,7 @@ Každý ETL běh generuje JSON s per-provider timingem:
 | Per-provider bazos | ~80 s | **~12 s** | **6.7× faster** |
 | Per-provider jobs | ~40 s | **~8 s** | **5.0× faster** |
 | Per-provider pracecz | ~60 s | **~16 s** | **3.8× faster** |
-| Unit tests | 0 | **131** | — |
+| Unit tests | 0 | **144** | — |
 | Rate limiting | `sleep(1.0-2.5)` | **1.0s přesný delay** | ToS compliant |
 
 ### Hlavní vylepšení oproti v0.3.1 (Iteration 3→8)
@@ -171,10 +187,10 @@ Každý ETL běh generuje JSON s per-provider timingem:
 | Boolean validation | runtime only | **config-load time** |
 | MCP error reporting | inconsistent | **unified `[{"error":...}]`** |
 | Config error messages | raw TypeError | **user-friendly** |
-| Test count | 97 | **131** |
+| Test count | 97 | **144** |
 | Inline import v loopu | ano | **top-level** |
 | Silent errors | ano | **eliminovány loggerem** (http/storage/base) |
-| Persistence | in-memory | **query_store.json + correlation_cache.json** |
+| Persistence | in-memory | **query_store.json + correlation_cache.json + PostgreSQL** (Faze 1) |
 | Detail fetch | sequential | **parallel** (ThreadPoolExecutor, max_workers=3) |
 | Domain allowlist | none | **SEC-001 SSRF protection** |
 | Request delay clamp | none | **min 0.2s** (config safety) |
@@ -196,9 +212,23 @@ Každý ETL běh generuje JSON s per-provider timingem:
 | Output | CSV+MD per portal | Unified JSON |
 | Protokol | Žádný | MCP (Model Context Protocol) |
 | Prompty | N/A | `search_expert` (MCP L3) |
-| Testy | 0 | **131 pytestů** |
+| Testy | 0 | **144 pytestů** |
 | Detail fetch | sequential | **parallel** (ThreadPoolExecutor) |
 | Security | none | **domain allowlist** (SSRF protection) |
+
+## PostgreSQL persistence (Faze 1)
+
+ETL běh ukládá data do PostgreSQL 16 (volitelné — bez DB pipeline běží dál, jen bez zápisu):
+
+| Komponenta | Popis |
+|------------|-------|
+| `data/schema.sql` | DDL: `ads` (URL UNIQUE dedup), `pipeline_runs` (run audit), status, matched/raw counts |
+| `docker-compose.yml` | postgres:16 + volume + schema init + healthcheck |
+| `src/mcp_jobs/db.py` | `persist_run` → start_run → upsert_ads (ON CONFLICT) → finish_run; graceful degradation |
+| `.env` | `DATABASE_URL` (module root resolve — funguje z MCP transportu, ne jen z CWD) |
+| `scripts/db.ps1` | restart/psql/logy/dedup check |
+
+Test izolace (P73): DB testy běží proti `mcpjobs_test` (odvozeno z `DATABASE_URL`), hard-guard odmítá TRUNCATE na non-test DB. Bez dostupného DATABASE_URL se DB testy skipnou.
 
 ## MCP Maturity
 
@@ -228,5 +258,18 @@ Každý ETL běh generuje JSON s per-provider timingem:
 - **Description matching**: word boundaries VYPNUTY na description (záměrně — české skloňování)
 - **Location filter**: substring matching (ne geokód), pro "Praha" dostačující
 - **Salary filter**: heuristická extrakce čísel (různé formáty napříč portály)
+- **Bazos detail fetch (P2)**: company/seller info jen z contact linku (`jmeno=`) na detail stránce — u inzerátů bez contact linku se company nevyplní. Logováno v pipeline (limit, ne chyba); plná implementace odložena.
 - **Security**: threat model není dokumentován — nutno doplnit před veřejnou publikací
 - **Domain allowlist**: SEC-001 SSRF protection — pouze povolené domény (bazos.cz, jobs.cz, prace.cz)
+- **CI**: test DB `mcpjobs_test` nutno vytvořit v CI (P73 izolace) — poslední 3 runs failed (2026-08-19)
+
+## Vývojový stav (2026-08-19)
+
+| Oblast | Stav |
+|--------|------|
+| Verze | 0.4.0 (Faze 1 standalone pivot) |
+| Testy | 144/144 PASS (lokálně; 2 encoding harness testy opraveny 2026-08-19) |
+| PostgreSQL | ✅ Faze 1 done: schema, docker-compose, db.py, .env self-contained, P73 izolace |
+| Output | ✅ Unified `etl_{PROFILE}_{ts}.{json,md,html}` (Storage.save_outputs, dedup na normalizovaném obsahu) |
+| CI | ⚠️ Red: `mcpjobs_test` nevytvořen v ci.yml (P73) — fix pending |
+| Backlog | Engineering-proces Phase 09 (uv, ruff+mypy, GH Actions, pre-commit, coverage 66 %), produktový Phase 09 (FTS5, Dockerfile non-root, SSRF allowlist, `__main__.py`+`--smoke`) |

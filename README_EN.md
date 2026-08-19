@@ -10,7 +10,7 @@
 
 # MCP-Jobs
 
-MCP server for scraping Czech job portals with boolean matching, exclude lists, and location/salary filters. Successor to legacy scrapers — **5.8× faster**, config-driven, 131 unit tests, production hardening.
+MCP server for scraping Czech job portals with boolean matching, exclude lists, location/salary filters and **PostgreSQL persistence**. Successor to legacy scrapers — **5.8× faster**, config-driven, **144 unit tests**, production hardening.
 
 ## Features
 
@@ -24,9 +24,12 @@ MCP server for scraping Czech job portals with boolean matching, exclude lists, 
 - **Pages guard** — max 50 pages per call (resource abuse prevention)
 - **Auto-validation** — boolean expressions validated at config load time (fail-fast)
 - **MCP-native** — stdio transport, FastMCP SDK, ready for AI agent integration
-- **131 unit tests** — pytest, full coverage of matcher, pipeline, providers, config
+- **144 unit tests** — pytest, full coverage of matcher, pipeline, providers, config, DB persistence
 - **Structured logging** — per-card skip count, 0-ads alert, no silent failures
 - **MCP L3 Prompts** — `search_expert` prompt for natural language to boolean query conversion
+- **PostgreSQL persistence (Phase 1)** — schema.sql (DDL), URL UNIQUE + ON CONFLICT dedup, run audit (pipeline_runs), graceful degradation (DB down → pipeline keeps running, just no writes)
+- **Test DB isolation (P73)** — DB tests target `mcpjobs_test` (derived from DATABASE_URL), hard guard refuses TRUNCATE on non-test DB
+- **`.env` self-contained** — DATABASE_URL loaded from module root (not CWD — works from MCP transport)
 
 ## Architecture
 
@@ -36,8 +39,9 @@ src/mcp_jobs/
 ├── models.py          # Ad dataclass (title, url, portal, desc, company, ...)
 ├── http.py            # HTTP client with retry, timeout, rate limiting (1.0s delay)
 ├── matcher.py         # Boolean AST evaluator + LRU cache + exclude filter + strip_diacritics
-├── pipeline.py        # SearchPipeline orchestrator (scrape → filter → results)
-├── storage.py         # CSV I/O + RAG index MD generation
+├── pipeline.py        # SearchPipeline orchestrator (scrape → filter → results → persist)
+├── storage.py         # Unified output (etl_{PROFILE}_{ts}.{json,md,html}) + dedup + correlation
+├── db.py              # PostgreSQL persistence (schema.sql, upsert_ads ON CONFLICT, run audit)
 ├── providers/         # Portal-specific scrapers
 │   ├── base.py        # BaseScraper ABC
 │   ├── bazos.py       # Bazos.cz with params support (hlokalita, humkreis)
@@ -46,10 +50,16 @@ src/mcp_jobs/
 │   └── nyx.py         # Nyx.cz (deprecated — auth-gated, not a job portal)
 ├── server.py          # FastMCP instance + tool registration + MCP L3 prompt
 └── cli.py             # CLI entry point (stdio MCP transport)
-output/                  # ETL outputs (JSON, reports)
+data/
+├── schema.sql         # DDL for PostgreSQL (ads, pipeline_runs, UNIQUE url)
+└── query_store.json   # Query output persistence
+output/                # ETL outputs etl_{PROFILE}_{ts}.{json,md,html}
 scripts/
 ├── run_etl.py           # Basic ETL runner
-└── run_etl_metrics.py   # ETL runner with per-provider timing
+├── run_etl_metrics.py   # ETL runner with per-provider timing
+├── db.ps1               # DB operations (restart, psql, logs, dedup check)
+└── healthcheck.py       # Healthcheck (dry-mode without DB)
+docker-compose.yml     # PostgreSQL 16 (volume, schema.sql init, healthcheck)
 ```
 
 ## Quick start
@@ -64,7 +74,12 @@ pip install -e ".[dev]"
 copy config.yaml.example config.yaml
 # Edit postal code, radius, queries, excludes as needed
 
-# Tests (131 tests)
+# PostgreSQL (optional, for persistence)
+docker compose up -d
+copy .env.example .env   # set DATABASE_URL=postgres://mcpjobs:mcpjobs@localhost:5432/mcpjobs
+# or: scripts\db.ps1 (restart, psql, logs)
+
+# Tests (144 tests; DB tests run against mcpjobs_test, skipped otherwise)
 pytest tests/ -v
 
 # ETL pipeline
@@ -121,6 +136,7 @@ queries:
 | `search_jobs_v2` | Boolean search across CZ portals (page guard: max 50) |
 | `search_from_config` | Full pipeline from YAML file path |
 | `search_from_yaml` | Full pipeline from inline YAML content |
+| `search_status` | Status of background search job (async pipeline) |
 | `list_portals` | Available portals and categories |
 
 ## Prompts
@@ -156,7 +172,7 @@ Each ETL run generates JSON with per-provider timing:
 | Per-provider bazos | ~80 s | **~12 s** | **6.7× faster** |
 | Per-provider jobs | ~40 s | **~8 s** | **5.0× faster** |
 | Per-provider pracecz | ~60 s | **~16 s** | **3.8× faster** |
-| Unit tests | 0 | **131** | — |
+| Unit tests | 0 | **144** | — |
 | Rate limiting | `sleep(1.0-2.5)` random | **1.0s precise delay** | ToS compliant |
 
 ### Key Improvements v0.3.1 → v0.4.0 (Iteration 3→8)
@@ -169,10 +185,10 @@ Each ETL run generates JSON with per-provider timing:
 | Boolean validation | runtime only | **config-load time** |
 | MCP error reporting | inconsistent | **unified `[{"error":...}]`** |
 | Config error messages | raw TypeError | **user-friendly** |
-| Test count | 97 | **131** |
+| Test count | 97 | **144** |
 | Inline import in loop | yes | **top-level** |
 | Silent errors | yes | **eliminated via logger** (http/storage/base) |
-| Persistence | in-memory | **query_store.json + correlation_cache.json** |
+| Persistence | in-memory | **query_store.json + correlation_cache.json + PostgreSQL** (Phase 1) |
 | Detail fetch | sequential | **parallel** (ThreadPoolExecutor, max_workers=3) |
 | Domain allowlist | none | **SEC-001 SSRF protection** |
 | Request delay clamp | none | **min 0.2s** (config safety) |
@@ -194,9 +210,23 @@ Each ETL run generates JSON with per-provider timing:
 | Output | CSV+MD per portal | Unified JSON |
 | Protocol | None | MCP (Model Context Protocol) |
 | Prompts | N/A | `search_expert` (MCP L3) |
-| Tests | 0 | **131 pytest** |
+| Tests | 0 | **144 pytest** |
 | Detail fetch | sequential | **parallel** (ThreadPoolExecutor) |
 | Security | none | **domain allowlist** (SSRF protection) |
+
+## PostgreSQL persistence (Phase 1)
+
+ETL runs persist to PostgreSQL 16 (optional — without DB the pipeline keeps running, just without writes):
+
+| Component | Description |
+|-----------|-------------|
+| `data/schema.sql` | DDL: `ads` (URL UNIQUE dedup), `pipeline_runs` (run audit), status, matched/raw counts |
+| `docker-compose.yml` | postgres:16 + volume + schema init + healthcheck |
+| `src/mcp_jobs/db.py` | `persist_run` → start_run → upsert_ads (ON CONFLICT) → finish_run; graceful degradation |
+| `.env` | `DATABASE_URL` (module root resolve — works from MCP transport, not only CWD) |
+| `scripts/db.ps1` | restart/psql/logs/dedup check |
+
+Test isolation (P73): DB tests run against `mcpjobs_test` (derived from `DATABASE_URL`), hard guard refuses TRUNCATE on non-test DB. Without a resolvable DATABASE_URL the DB tests are skipped.
 
 ## MCP Maturity
 
@@ -226,5 +256,18 @@ Each ETL run generates JSON with per-provider timing:
 - **Description matching**: word boundaries DISABLED on description (intentional — Czech inflection)
 - **Location filter**: substring matching (no geocoding), sufficient for "Praha"
 - **Salary filter**: heuristic number extraction (varying formats across portals)
+- **Bazos detail fetch (P2)**: company/seller info only from contact link (`jmeno=`) on the detail page — ads without a contact link get no company. Logged in pipeline (limit, not error); full implementation deferred.
 - **Security**: threat model not documented — must be added before public release
 - **Domain allowlist**: SEC-001 SSRF protection — only allowed domains (bazos.cz, jobs.cz, prace.cz)
+- **CI**: test DB `mcpjobs_test` must be created in CI (P73 isolation) — last 3 runs failed (2026-08-19)
+
+## Development status (2026-08-19)
+
+| Area | Status |
+|------|--------|
+| Version | 0.4.0 (Phase 1 standalone pivot) |
+| Tests | 144/144 PASS (locally; 2 encoding harness tests fixed 2026-08-19) |
+| PostgreSQL | ✅ Phase 1 done: schema, docker-compose, db.py, .env self-contained, P73 isolation |
+| Output | ✅ Unified `etl_{PROFILE}_{ts}.{json,md,html}` (Storage.save_outputs, dedup on normalized content) |
+| CI | ⚠️ Red: `mcpjobs_test` not created in ci.yml (P73) — fix pending |
+| Backlog | Engineering-process Phase 09 (uv, ruff+mypy, GH Actions, pre-commit, coverage 66 %), product Phase 09 (FTS5, Dockerfile non-root, SSRF allowlist, `__main__.py`+`--smoke`) |

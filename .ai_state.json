@@ -21,14 +21,14 @@
       "note": "Fallback + srovnani se scrapers; korekce balik 1-5 aplikovan"
     }
   },
-  "pending": [
+"pending": [
     "Engineering-proces (Phase 09): uv+uv.lock, ruff+mypy strict, GH Actions ci+release, pre-commit, coverage baseline 66%, Dependabot",
     "Produktovy (Phase 09): SQLite/FTS5 persistent storage, Dockerfile non-root, SSRF URL allowlist + SECURITY.md threat model, cap lazy detail fetch (F5), __main__.py + --smoke",
+    "CI fix: test DB mcpjobs_test create v ci.yml (P73 izolace vyzaduje, CI service vytvari jen mcpjobs) — posledni 3 runs failed",
+    "P2: bazos fetch_detail — RESOLVED 2026-08-19: log limitu v pipeline.py + zminka v README (company jen z contact linku jmeno=); plna implementace odlozena",
     "Post-public: Streamable HTTP + OAuth, PyPI trusted publishing, observability, hosted demo (Railway/Render)",
-    "P2: bazos fetch_detail NotImplementedError — dokumentace/implementace (m7 Grok)",
     "P2: _default_category jobs hardcoded praha (m1, search_jobs_v2 vzdy Praha)",
-    "LinkedIn Analyzer integrace",
-    "Sladit nemecko-blocklist / exclude listy mezi MCP-Jobs config a scrapers topics.csv (scrapers: vsech 93 radku blokovano)"
+    "DEFERRED (2026-08-19): jina repa se prozatim neresi — aktivni je proces adopce/učení SQL domény (zejmena PostgreSQL). LinkedIn Analyzer integrace + sladit nemecko-blocklist mezi config a scrapers topics.csv odlozeno do doby po dokonceni SQL sekvence (SQL_ADOPCE_PLAN 2026-08-16)"
   ],
   "completed": [
     "Phase 09 hotfix (2026-08-01): F1-F4 + F7/F8/F9/F18, 125 testu PASS, commit 45f70ad pushnuto. KB artefakt: HOTFIX_09_2026-08-01.md",

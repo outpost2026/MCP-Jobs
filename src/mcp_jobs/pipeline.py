@@ -164,6 +164,12 @@ class SearchPipeline:
                 return url, None
             try:
                 detail = provider.fetch_detail(ad_obj)
+                if ad_obj.portal == "bazos" and detail is None:
+                    logger.info(
+                        "bazos detail limit: company/seller info dostupny jen z "
+                        "contact linku (jmeno=) na detail strane — u inzeratu bez "
+                        "contact linku se company nevyplni (P2, dokumentovano v README)"
+                    )
                 return url, detail
             except Exception as e:
                 logger.warning("detail fetch failed for %s: %s", url, e)
