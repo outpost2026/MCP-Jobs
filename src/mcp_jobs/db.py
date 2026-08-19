@@ -16,11 +16,13 @@ from .models import Ad
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_PATH = Path("data") / "schema.sql"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+SCHEMA_PATH = _REPO_ROOT / "data" / "schema.sql"
 
 _db = None  # module-level cached connection (reuse across calls in one run)
 
-_ENV_PATH = Path(".env")
+_ENV_PATH = _REPO_ROOT / ".env"
 
 
 def _load_env(path: Path = _ENV_PATH) -> None:
