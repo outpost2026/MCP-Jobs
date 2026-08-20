@@ -5,6 +5,7 @@ from mcp_jobs.providers.jenprace import JenpraceScraper
 from mcp_jobs.providers.jobs import JobsScraper
 from mcp_jobs.providers.pracecz import PraceczScraper
 from mcp_jobs.providers.profesia import ProfesiaScraper
+from mcp_jobs.providers.volnamista import VolnamistaScraper
 
 BAZOS_HTML = """
 <div class="inzeraty">
@@ -111,6 +112,56 @@ PROFESIA_HTML = """
         </div>
     </div>
 </li>
+"""
+
+VOLNAMISTA_HTML = """
+<div>
+    <div data-e2e="job-list-item-210961200">
+        <a data-e2e="detail-link" href="/nabidka-prace/udrzbar/210961200">údržbář</a>
+        <a href="/firma/impera">IMPERA</a>
+        <p class="MuiTypography-root MuiTypography-body1 css-ggdyiy-MuiTypography-root">
+            Praha\u2013Dnes
+        </p>
+        <div class="MuiChip-root MuiChip-filled MuiChip-colorDefault css-1x06wcn-MuiChip-root">
+            <span class="MuiChip-label MuiChip-labelMedium css-14vsv3w-MuiChip-label">
+                60\u00a0000 Kč / měsíc
+            </span>
+        </div>
+    </div>
+    <div data-e2e="job-list-item-210961278">
+        <a data-e2e="detail-link" href="/nabidka-prace/ostraha-slavia-bohemians/210961278">Ostraha / Slavia - Bohemians</a>
+        <a href="/firma/select-solution">Select Solution Service Economy, s.r.o.</a>
+        <p class="MuiTypography-root MuiTypography-body1 css-ggdyiy-MuiTypography-root">
+            Hlavní město Praha\u2013Před 2 dny
+        </p>
+    </div>
+</div>
+"""
+
+VOLNAMISTA_DETAIL_HTML = """
+<html>
+<body>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org/",
+    "@type": "JobPosting",
+    "title": "údržbář",
+    "description": "<p>Hledáme spolehlivého člověka\u2013univerzála na dlouhodobou spolupráci.</p><p>Náplň práce: běžná údržba.</p>",
+    "hiringOrganization": {"name": "IMPERA"}
+}
+</script>
+</body>
+</html>
+"""
+
+VOLNAMISTA_DETAIL_NEXTDATA_HTML = """
+<html>
+<body>
+<script id="__NEXT_DATA__" type="application/json">
+{"props":{"pageProps":{"jobAdvert":{"name":"údržbář","description_rich":"<p>FALLBACK popis přes NEXT_DATA.</p>"}}}}
+</script>
+</body>
+</html>
 """
 
 
@@ -426,6 +477,73 @@ def test_profesia_fetch_detail_returns_description():
     assert "Kontrola a kalibrace vah" in desc
 
 
+def test_volnamista_parse_listings():
+    scraper = VolnamistaScraper()
+    ads = scraper.parse_listings(VOLNAMISTA_HTML, "udrzbar")
+    assert len(ads) == 2
+    assert ads[0].title == "údržbář"
+    assert ads[0].url == "https://www.volnamista.cz/nabidka-prace/udrzbar/210961200"
+    assert ads[0].company == "IMPERA"
+    assert ads[0].location == "Praha"
+    assert ads[0].date == "Dnes"
+    assert ads[0].salary == "60 000 Kč / měsíc"
+    assert ads[0].matched_keyword == "udrzbar"
+
+
+def test_volnamista_splits_location_and_date_on_last_dash():
+    """location+date jsou v jednom p oddelenem en-dash; date = vse za POSLEDNIM."""
+    scraper = VolnamistaScraper()
+    ads = scraper.parse_listings(VOLNAMISTA_HTML, "")
+    assert ads[1].location == "Hlavní město Praha"
+    assert ads[1].date == "Před 2 dny"
+    assert ads[1].salary is None
+
+
+def test_volnamista_salary_has_no_nbsp():
+    """NBSP v salary chcipu se normalizuje na mezeru (nekorektni v DB)."""
+    scraper = VolnamistaScraper()
+    ads = scraper.parse_listings(VOLNAMISTA_HTML, "")
+    assert "\xa0" not in ads[0].salary
+
+
+def test_volnamista_empty_html():
+    scraper = VolnamistaScraper()
+    ads = scraper.parse_listings("<html></html>", "udrzbar")
+    assert ads == []
+
+
+def test_volnamista_broken_selector_logs(caplog):
+    """M4 fix: no cards found -> error log (layout change detection)."""
+    import logging
+
+    scraper = VolnamistaScraper()
+    ads = scraper.parse_listings('<div class="totally-different">x</div>', "udrzbar")
+    assert ads == []
+    assert any("0 cards" in r.message for r in caplog.records)
+    assert caplog.records[-1].levelno == logging.ERROR
+
+
+def test_volnamista_scrape_all_stops_on_empty():
+    scraper = VolnamistaScraper()
+    ads = scraper.scrape_all("https://www.volnamista.cz/praha", max_pages=2)
+    assert isinstance(ads, list)
+
+
+def test_volnamista_parse_detail_from_jsonld():
+    """fetch_detail extrahuje popis z JSON-LD JobPosting, tagy stripuje."""
+    desc = VolnamistaScraper._parse_detail_text(VOLNAMISTA_DETAIL_HTML)
+    assert desc is not None
+    assert "Hledáme spolehlivého člověka" in desc
+    assert "<p>" not in desc
+
+
+def test_volnamista_parse_detail_fallback_next_data():
+    """Fallback: NEXT_DATA pageProps.jobAdvert.description_rich."""
+    desc = VolnamistaScraper._parse_detail_text(VOLNAMISTA_DETAIL_NEXTDATA_HTML)
+    assert desc is not None
+    assert "FALLBACK popis přes NEXT_DATA" in desc
+
+
 def test_active_portals_excludes_nyx():
     assert "nyx" not in ACTIVE_PORTALS
     assert "bazos" in ACTIVE_PORTALS
@@ -433,7 +551,8 @@ def test_active_portals_excludes_nyx():
     assert "pracecz" in ACTIVE_PORTALS
     assert "jenprace" in ACTIVE_PORTALS
     assert "profesia" in ACTIVE_PORTALS
-    assert len(ACTIVE_PORTALS) == 5
+    assert "volnamista" in ACTIVE_PORTALS
+    assert len(ACTIVE_PORTALS) == 6
 
 
 def test_ad_to_dict():

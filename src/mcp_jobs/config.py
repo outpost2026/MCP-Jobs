@@ -67,6 +67,7 @@ class PipelineSettings:
             "prace.cz",
             "jenprace.cz",
             "profesia.cz",
+            "volnamista.cz",
         ]
     )
 

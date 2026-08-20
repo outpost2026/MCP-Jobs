@@ -3,6 +3,7 @@ from .jenprace import JenpraceScraper
 from .jobs import JobsScraper
 from .pracecz import PraceczScraper
 from .profesia import ProfesiaScraper
+from .volnamista import VolnamistaScraper
 
 REGISTRY: dict[str, type] = {
     "bazos": BazosScraper,
@@ -10,6 +11,7 @@ REGISTRY: dict[str, type] = {
     "jobs": JobsScraper,
     "pracecz": PraceczScraper,
     "profesia": ProfesiaScraper,
+    "volnamista": VolnamistaScraper,
 }
 
 ACTIVE_PORTALS: dict[str, type] = dict(REGISTRY)
@@ -22,4 +24,5 @@ __all__ = [
     "JobsScraper",
     "PraceczScraper",
     "ProfesiaScraper",
+    "VolnamistaScraper",
 ]

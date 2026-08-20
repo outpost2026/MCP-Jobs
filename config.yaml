@@ -52,6 +52,12 @@ portals:
       - url: "https://www.profesia.cz/prace/praha/"
         pages: 10
 
+  volnamista:
+    enabled: true
+    categories:
+      - url: "https://www.volnamista.cz/praha"
+        pages: 10
+
 # ── Společný exclude pool (odfiltruje nabídky služeb / osobní inzeráty) ──
 _x_exclude: &_x_exclude
   - agentura
@@ -81,53 +87,53 @@ queries:
     exclude: *_x_exclude
     min_salary: 0
     locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
-    portals: ["jobs", "pracecz", "jenprace", "profesia"]
+    portals: ["jobs", "pracecz", "jenprace", "profesia", "volnamista"]
 
   ai_llm_engineer:
     boolean: "(llm OR openai OR gpt OR (ai AND (engineer OR architect OR developer OR vyvojar OR programator OR inzenyr))) NOT (lektor OR kurz OR skoleni)"
     exclude: *_x_exclude
     min_salary: 0
     locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
-    portals: ["jobs", "pracecz", "jenprace", "profesia"]
+    portals: ["jobs", "pracecz", "jenprace", "profesia", "volnamista"]
 
   mcp_agentic:
     boolean: "(mcp OR agentic OR copilot OR chatbot OR (ai AND (agent OR asistent OR asistenta OR asistentem OR integrace OR automatizace)) OR (llm AND (engineer OR developer OR vyvojar OR programator OR integrace)) OR (rag AND (engineer OR developer)) OR (automatizace AND (procesu OR rpa)) OR (jazykovy AND model) OR (jazykovym AND modelem) OR (velky AND jazykovy AND model)) NOT (lektor OR kurz OR skoleni)"
     exclude: *_x_exclude
     min_salary: 0
     locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
-    portals: ["jobs", "pracecz", "jenprace", "profesia"]
+    portals: ["jobs", "pracecz", "jenprace", "profesia", "volnamista"]
 
   data_engineering:
     boolean: "(data AND (engineer OR inzenyr OR analyst OR pipeline OR etl OR warehouse OR streaming OR bigdata OR (machine AND learning) OR science OR scientist)) NOT (kurz OR skoleni OR lektor)"
     exclude: *_x_exclude
     min_salary: 0
     locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
-    portals: ["jobs", "pracecz", "jenprace", "profesia"]
+    portals: ["jobs", "pracecz", "jenprace", "profesia", "volnamista"]
 
   devops_ci_cd:
     boolean: "(devops OR (ci AND cd) OR docker OR kubernetes OR terraform OR ansible OR (infrastructure AND code) OR site_reliability OR sre)"
     exclude: *_x_exclude
     min_salary: 0
     locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
-    portals: ["jobs", "pracecz", "jenprace", "profesia"]
+    portals: ["jobs", "pracecz", "jenprace", "profesia", "volnamista"]
 
   prumyslova_automatizace:
     boolean: "(plc OR scada OR dcs OR robotika OR robotizace OR cobot OR (automatizace AND (vyrobni OR vyroba OR linka OR prumysl OR prumyslova OR prumyslove OR industrie)) OR (siemens AND (plc OR tia OR automatizace)) OR (control AND (automation OR automatizace)) OR (automation AND (engineer OR inzenyr OR projektant OR industrial OR plc OR robot OR manufacturing))) NOT (rpa OR uipath OR (power AND automate) OR obchodni OR administrativa)"
     exclude: *_x_exclude
     min_salary: 0
     locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
-    portals: ["jobs", "pracecz", "bazos", "jenprace", "profesia"]
+    portals: ["jobs", "pracecz", "bazos", "jenprace", "profesia", "volnamista"]
 
   cnc_cam_automation:
     boolean: "(cnc OR frezar OR frezarka OR frezovani OR (cam AND software) OR obrabecich OR obrabecim OR sprutcam OR mastercam OR postprocesing OR serizovac OR nastavovac) AND (programovani OR programator OR automatizace OR software OR obrabeni OR nastaveni OR serizovani OR serizovac OR sprutcam OR mastercam OR postprocesing) NOT (obsluha OR operator OR uklid OR stavebni OR montaz)"
     exclude: *_x_exclude
     min_salary: 0
     locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
-    portals: ["pracecz", "bazos", "jenprace", "profesia"]
+    portals: ["pracecz", "bazos", "jenprace", "profesia", "volnamista"]
 
   reverse_engineering:
     boolean: "(reverse AND (engineering OR engineer OR inzenyr)) OR (scraping OR scraper OR dataminer OR (data AND mining)) OR (decompil OR disassembl) OR (firmware AND analysis) OR (malware AND (analyst OR analysis OR research)) OR (vulnerability AND (research OR analysis OR researcher)) OR (exploit AND (development OR developer)) OR (ghidra OR radare2 OR (ida AND pro)) OR (threat AND (research OR intelligence)) OR (kernel AND (research OR security)) OR (antivirus AND (research OR analyst)) NOT (kurz OR skoleni OR lektor OR uklid)"
     exclude: *_x_exclude
     min_salary: 0
     locations: ["praha", "remote", "home office", "domova", "hybrid", "dálkově"]
-    portals: ["jobs", "pracecz", "jenprace", "profesia"]
+    portals: ["jobs", "pracecz", "jenprace", "profesia", "volnamista"]

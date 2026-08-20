@@ -51,7 +51,8 @@ def test_active_portals_no_nyx():
     assert "pracecz" in ACTIVE_PORTALS
     assert "jenprace" in ACTIVE_PORTALS
     assert "profesia" in ACTIVE_PORTALS
-    assert len(ACTIVE_PORTALS) == 5
+    assert "volnamista" in ACTIVE_PORTALS
+    assert len(ACTIVE_PORTALS) == 6
 
 
 def test_portal_aliases():
@@ -64,18 +65,20 @@ def test_portal_aliases():
     assert PORTAL_ALIASES["pracecz"] == "pracecz"
     assert PORTAL_ALIASES["prace"] == "pracecz"
     assert PORTAL_ALIASES["profesia"] == "profesia"
+    assert PORTAL_ALIASES["volnamista"] == "volnamista"
     assert "nyx" not in PORTAL_ALIASES
 
 
 def test_list_portals():
     portals = list_portals()
-    assert len(portals) == 5
+    assert len(portals) == 6
     names = [p["name"] for p in portals]
     assert "bazos" in names
     assert "jenprace" in names
     assert "jobs" in names
     assert "pracecz" in names
     assert "profesia" in names
+    assert "volnamista" in names
     for p in portals:
         assert "default_category" in p
         assert p["default_category"]
