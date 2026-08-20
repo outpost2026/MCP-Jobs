@@ -27,6 +27,7 @@ credentials*
 *.csv
 *.md
 !README.md
+!README_EN.md
 
 # Scraped data — raw HTML + results JSON from live tests
 data/*
