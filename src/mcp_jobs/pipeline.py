@@ -10,6 +10,7 @@ from .matcher import has_exclude_terms, matches_ad
 from .models import Ad
 from .providers import REGISTRY
 from .providers.base import is_url_allowed
+from .utils import fuzzy_key
 
 logger = logging.getLogger(__name__)
 
@@ -46,14 +47,10 @@ def _dedup(ads: list[Ad]) -> list[Ad]:
     result: list[Ad] = []
     for ad in ads:
         url_key = ad.url
-        fuzzy_key = (
-            ad.title.lower().strip(),
-            (ad.company or "").lower().strip(),
-            (ad.location or "").lower().strip(),
-        )
-        if url_key not in seen_url and fuzzy_key not in seen_fuzzy:
+        fuzzy_key_tuple = fuzzy_key(ad)
+        if url_key not in seen_url and fuzzy_key_tuple not in seen_fuzzy:
             seen_url.add(url_key)
-            seen_fuzzy.add(fuzzy_key)
+            seen_fuzzy.add(fuzzy_key_tuple)
             result.append(ad)
         elif url_key in seen_url:
             logger.warning("Dedup: duplicate URL dropped: %s", ad.url)

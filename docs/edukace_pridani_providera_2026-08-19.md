@@ -1,7 +1,7 @@
 # EDUKACE: Přidání nového portálu (providera) do MCP-Jobs
 
-**Datum:** 2026-08-19 | **Typ:** metodologie / dev návod | **Rozsah:** MCP-Jobs repo
-**Case study:** jenprace.cz (úspěšná integrace, 4. portál) + startupjobs.cz (negativní příklad)
+**Datum:** 2026-08-19 | **Aktualizace:** 2026-08-20 | **Typ:** metodologie / dev návod | **Rozsah:** MCP-Jobs repo
+**Case study:** jenprace.cz (úspěšná integrace, 4. portál) + startupjobs.cz (negativní příklad) + profesia.cz (#5) + volnamista.cz (#6) + dedup audit (GT-090/091)
 
 ---
 
@@ -339,6 +339,62 @@ python -X utf8 -c "from mcp_jobs.providers.jenprace import JenpraceScraper; ..."
 
 ---
 
+## 10B. Case studies: profesia.cz (#5) + volnamista.cz (#6) + dedup audit (2026-08-20)
+
+### 10B.1 profesia.cz — ManpowerGroup layout varianta (detail)
+
+| Nález | Detail |
+|---|---|
+| Karty | `li.list-row` + `h2 a span.title` |
+| Paginace | `?page_num=N` |
+| Detail selectory | **rank-ordered fallback** `_DETAIL_BODY_SELECTORS`: `div.details[itemprop="description"]` → `div.details` → `.details-section .details-desc` |
+| Anomálie (hSNR) | ManpowerGroup inzeráty **nemají wrapper `div.details[itemprop]`** — používají přímo `.details-section .details-desc`. Stejný portál, jiný inzerent = jiný layout detailu. Fallback řetězec selektorů je nutnost, ne jen jedna cesta. |
+| URL cleanup | `_clean_detail_url()` stripuje `search_id` (session param) — **ale jen profesia měla tento kód** (viz dedup audit níže) |
+
+### 10B.2 volnamista.cz — Seznam.cz bot-detekce + JSON-LD detail
+
+| Nález | Detail |
+|---|---|
+| Karty | `[data-e2e^="job-list-item"]` — data-e2e prefix (Seznam test atribut, stabilní) |
+| Title | `[data-e2e="detail-link"]`, firma `a[href^="/firma/"]` |
+| Location/date | `<p>` splitnutý **en-dash** (`\u2013`) — poslední segment = date |
+| Salary | `.MuiChip-label` (MaterialUI) s NBSP `\xa0` → replace na mezeru |
+| Paginace | `?strana=N` (page 1 bez parametru) |
+| Detail | **JSON-LD `JobPosting`** (primární) → **`__NEXT_DATA__` → pageProps.jobAdvert** (fallback) |
+| **Bot-detekce (hSNR)** | Seznam.cz deterministicky vrací **consent page** pro default HttpClient (UA Chrome/120 + `Accept`). Fix: UA **Chrome/126 BEZ `Accept`** hlavičky, aplikováno v `__init__` providera (volnamista.py:41-56). |
+
+**Klíčové pravidlo bot-detekce:** anti-bot je kombinace hlaviček (UA + Accept), ne samotný UA. Deterministická blokace = live test 5/5 reprodukce, pak per-portal header varianta v `__init__` (respektující mockeri v testech).
+
+### 10B.3 Dedup audit — 3 vrstvy unikátnosti (GT-090, GT-091)
+
+Audit live DB (2026-08-20) odhalil, že "každá ad unikátní" má **3 vrstvy**, které se liší v míře pokrytí:
+
+| Vrstva | Mechanismus | Nalezený defekt |
+|---|---|---|
+| 1. URL dedup | `UNIQUE(url)` + `ON CONFLICT` | **Rozbité tracking parametry**: jobs.cz `?searchId=<UUID>`, prace.cz `?rps=2077` se mění každý běh → UNIQUE nechytí → 52 duplicit / 20 skupin |
+| 2. Fuzzy dedup (in-memory) | `_dedup` pipeline (title+company+location) | **Neošetřené varianty**: en-dash `Praha – Uhříněves` vs hyphen `Praha-Uhříněves`, diakritika → fuzzy klíč se liší → duplicita projde |
+| 3. Cross-portal dedup (DB) | neexistoval | **LMC network** (jobs.cz+prace.cz sdílí inzerci), **ManpowerGroup** (jenprace+profesia) → stejný inzerát na 2 portálech → 9 skupin v live DB |
+
+**Fixy:**
+
+1. **Centrální URL canonicalizace** — `normalize_url()` v `utils.py` (strip `searchId`, `search_id`, `rps`, `utm_*`; preserve ostatní query paramy), aplikovaná v `Ad.__post_init__`. Kanonický URL = dedup klíč. **Stripping patří do centrálního bodu, ne do per-provider kódu** (profesia měla vlastní `_clean_detail_url`, jobs/pracecz žádný → drift).
+
+2. **Sdílený fuzzy klíč + DB-level dedup** — `fuzzy_key()` (lowercase → NFKD strip diakritiky → en/em-dash→hyphen → kolaps whitespace) sdílený pipeline `_dedup` i `upsert_ads`. DB sloupce `fuzzy_title/company/location` + index. `upsert_ads` batched lookup (`unnest(%s::text[])` = **1 round-trip**, ne per-ad SELECT — pipeline zůstává lehký).
+
+3. **Deterministická priorita vítěze** — "bohatší data vyhrávají" (description 8 > salary 4 > company 2 > location 1), tie-break = first-seen (existující radka si podrží URL+portal, bez churn). **Žádný hardcoded portál ranking.**
+
+**Výsledek:** live DB 167 → **125 řádků, 125 unikátních URL, 0 duplicit** (82 canonicalizováno, 32 URL duplicity + 10 fuzzy duplicity smazány).
+
+### 10B.4 Pravidla pro další portály (z auditů)
+
+1. **Vždy stripuj tracking parametry v centrálním bodě** — nikdy nespoléhej na UNIQUE(raw URL).
+2. **Fuzzy klíč = normalizovaný** (NFKD + dash→hyphen) — raw stringy selhávají na cross-portal variantách.
+3. **Cross-portal dedup je DB záležitost** — in-memory nestačí napříč běhy.
+4. **Anti-bot = kombinace hlaviček** — live test 5/5, ne předpoklad.
+5. **Detail selectory = rank-ordered fallback** — jeden inzerent může mít jiný layout (ManpowerGroup).
+
+---
+
 ## 11. Checklist (tahák pro další portál)
 
 ```
@@ -354,6 +410,9 @@ python -X utf8 -c "from mcp_jobs.providers.jenprace import JenpraceScraper; ..."
 [ ] F5  dry run pipeline (stats: 0 failed, dedup, description přítomen)
 [ ] F5  RESTART MCP serveru + test via MCP (list_portals / search_jobs_v2)
 [ ] F5  plný ETL run + konsolidace + commit (jen na vyžádání)
+[ ] F6  dedup audit: URL canonicalizace (strip searchId/rps v Ad.__post_init__), 
+[ ] F6    fuzzy dedup (sdílený fuzzy_key, DB-level), cross-portal kontrola
+[ ] F6    live DB: UNIQUE url funguje? fuzzy sloupce backfill? 0 duplicit?
 [ ] GO/NO-GO: 100% testy, 0 field_failures, konzistence s historickými portály
 ```
 
@@ -365,6 +424,9 @@ python -X utf8 -c "from mcp_jobs.providers.jenprace import JenpraceScraper; ..."
 |---|---|
 | `src/mcp_jobs/providers/base.py` | `BaseScraper`, `_fetch_page`, `_fetch_detail_text`, `is_url_allowed` (SEC-001) |
 | `src/mcp_jobs/providers/jenprace.py` | Referenční implementace (case study) |
+| `src/mcp_jobs/providers/profesia.py` | ManpowerGroup layout fallback, `_clean_detail_url` (search_id) |
+| `src/mcp_jobs/providers/volnamista.py` | Seznam bot-detekce headers, JSON-LD/NEXT_DATA detail |
+| `src/mcp_jobs/utils.py` | `normalize_url` (P74), `fuzzy_key` (P75) — centrální dedup |
 | `src/mcp_jobs/pipeline.py` | Fáze 1-2-3, dedup, `_FAILED` sentinel, per-portal threading |
 | `src/mcp_jobs/http.py` | `HttpClient` — retry politika, throttle, encoding |
 | `src/mcp_jobs/matcher.py` | Boolean engine, diakritika, word-boundary |
@@ -378,4 +440,6 @@ python -X utf8 -c "from mcp_jobs.providers.jenprace import JenpraceScraper; ..."
 
 *Tento dokument vznikl na základě reálné integrace jenprace.cz (2026-08-19) —
 od feasibility po validaci via MCP. Datové hodnoty v sekci 10 jsou ověřeny
-z deterministických výstupů (dry run, MCP search_status).*
+z deterministických výstupů (dry run, MCP search_status). Sekce 10B (profesia
+#5, volnamista #6, dedup audit) doplněna 2026-08-20 z live DB auditu (167 → 125
+řádků) a ověřena source-read kódem (utils.py, models.py, db.py, pipeline.py).*

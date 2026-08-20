@@ -119,7 +119,19 @@ def test_persist_run_graceful_without_db(monkeypatch):
 
 
 def test_persist_run_creates_run_and_ads(conn):
-    ads = [_ad("https://example.com/job/3"), _ad("https://example.com/job/4")]
+    ads = [
+        _ad("https://example.com/job/3"),
+        Ad(
+            title="Python Backend",
+            url="https://example.com/job/4",
+            portal="jobs",
+            company="Acme",
+            location="Brno",
+            salary="65000",
+            description="Backend role",
+            matched_keyword="python",
+        ),
+    ]
     run_id = persist_run(
         {"q1": ads},
         "ai_native",
@@ -135,3 +147,130 @@ def test_persist_run_creates_run_and_ads(conn):
     assert status == "completed"
     count = conn.execute("SELECT COUNT(*) FROM ads").fetchone()[0]
     assert count == 2
+
+
+def _ad_rich(url: str, **kw) -> Ad:
+    """Ad s rucne specifikovanymi poli (richness scoring)."""
+    base = dict(
+        title="SERVISNI TECHNIK VYTAHU",
+        url=url,
+        portal="pracecz",
+        company="Schindler",
+        location="Praha",
+        salary=None,
+        description=None,
+        matched_keyword="q",
+    )
+    base.update(kw)
+    return Ad(**base)
+
+
+def test_fuzzy_dedup_same_semantic_ad_cross_portal(conn):
+    """Stejny inzerat na jobs.cz + prace.cz (ruzne URL, stejna data) = 1 radka."""
+    jobs = _ad_rich(
+        "https://www.jobs.cz/rpd/2001109039/",
+        portal="jobs",
+        salary="60000",
+        description="Vytahy Schindler",
+    )
+    prace = _ad_rich(
+        "https://www.prace.cz/nabidka/f7fdcc20/",
+        portal="pracecz",
+        salary="60000",
+        description="Vytahy Schindler",
+    )
+    n1 = upsert_ads(conn, [jobs], query_name="q", profile="p")
+    n2 = upsert_ads(conn, [prace], query_name="q", profile="p")
+    assert n1 == 1
+    assert n2 == 0  # fuzzy hit — pracecz preskoceno (first-seen jobs vyhrava)
+    rows = conn.execute("SELECT COUNT(*) FROM ads").fetchone()[0]
+    assert rows == 1
+    portal = conn.execute("SELECT portal FROM ads").fetchone()[0]
+    assert portal == "jobs"  # portal prvni ad se zachova
+
+
+def test_fuzzy_dedup_richer_data_wins(conn):
+    """Nova ad s bohatsimi daty (description) nahradi chudsi existujici."""
+    poor = _ad_rich(
+        "https://www.jobs.cz/rpd/100/",
+        portal="jobs",
+        description=None,  # chudsi
+    )
+    rich = _ad_rich(
+        "https://www.prace.cz/nabidka/100/",
+        portal="pracecz",
+        description="Kompletni popis role",  # bohatsi
+    )
+    upsert_ads(conn, [poor], query_name="q", profile="p")
+    n = upsert_ads(conn, [rich], query_name="q", profile="p")
+    assert n == 1  # rich nahradil poor (DELETE + insert)
+    rows = conn.execute("SELECT COUNT(*) FROM ads").fetchone()[0]
+    assert rows == 1
+    portal, desc = conn.execute("SELECT portal, description FROM ads").fetchone()
+    assert portal == "pracecz"  # portal vitezne (bohatsi) ad
+    assert desc == "Kompletni popis role"
+
+
+def test_fuzzy_dedup_tie_keeps_existing(conn):
+    """Stejna bohatost dat — first-seen (existujici radka) vyhrava, bez churn."""
+    first = _ad_rich(
+        "https://www.jobs.cz/rpd/200/",
+        portal="jobs",
+        company="Acme",
+        location="Praha",
+    )
+    second = _ad_rich(
+        "https://www.prace.cz/nabidka/200/",
+        portal="pracecz",
+        company="Acme",
+        location="Praha",
+    )
+    upsert_ads(conn, [first], query_name="q", profile="p")
+    n = upsert_ads(conn, [second], query_name="q", profile="p")
+    assert n == 0
+    rows = conn.execute("SELECT COUNT(*) FROM ads").fetchone()[0]
+    assert rows == 1
+    portal = conn.execute("SELECT portal FROM ads").fetchone()[0]
+    assert portal == "jobs"
+
+
+def test_fuzzy_dedup_en_dash_and_diacritics(conn):
+    """Normalizace: en-dash vs hyphen + diakritika = stejny fuzzy klic."""
+    a = _ad_rich(
+        "https://www.jobs.cz/rpd/300/",
+        portal="jobs",
+        location="Praha - Uhrineves",
+    )
+    b = _ad_rich(
+        "https://www.prace.cz/nabidka/300/",
+        portal="pracecz",
+        location="Praha \u2013 Uhrineves",  # en-dash
+    )
+    upsert_ads(conn, [a], query_name="q", profile="p")
+    n = upsert_ads(conn, [b], query_name="q", profile="p")
+    assert n == 0  # normalizovany klic se shoduje — dedup zafungoval
+    rows = conn.execute("SELECT COUNT(*) FROM ads").fetchone()[0]
+    assert rows == 1
+
+
+def test_fuzzy_dedup_within_batch(conn):
+    """Dve ady se stejnym fuzzy klicem v JEDNOM batchi = 1 radka."""
+    a = _ad_rich("https://www.jobs.cz/rpd/400/", portal="jobs")
+    b = _ad_rich("https://www.prace.cz/nabidka/400/", portal="pracecz")
+    n = upsert_ads(conn, [a, b], query_name="q", profile="p")
+    assert n == 1  # bohatost stejna — prvni v batchi vyhrava
+    rows = conn.execute("SELECT COUNT(*) FROM ads").fetchone()[0]
+    assert rows == 1
+    portal = conn.execute("SELECT portal FROM ads").fetchone()[0]
+    assert portal == "jobs"
+
+
+def test_fuzzy_dedup_skips_empty_fuzzy_key(conn):
+    """Ad bez title (prazdny fuzzy klic) spolehne na URL UNIQUE."""
+    a = _ad_rich("https://example.com/only-url/", title="")
+    n1 = upsert_ads(conn, [a], query_name="q", profile="p")
+    n2 = upsert_ads(conn, [a], query_name="q", profile="p")
+    assert n1 == 1
+    assert n2 == 0
+    rows = conn.execute("SELECT COUNT(*) FROM ads").fetchone()[0]
+    assert rows == 1

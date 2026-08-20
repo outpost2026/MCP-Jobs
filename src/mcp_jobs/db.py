@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import Ad
+from .utils import fuzzy_key
 
 logger = logging.getLogger(__name__)
 
@@ -93,23 +94,100 @@ def finish_run(
     )
 
 
+def _richness_score(ad: Ad) -> int:
+    """Skore bohatosti dat: description > salary > company > location."""
+    score = 0
+    if ad.description:
+        score += 8
+    if ad.salary:
+        score += 4
+    if ad.company:
+        score += 2
+    if ad.location:
+        score += 1
+    return score
+
+
 def upsert_ads(conn: Any, ads: list[Ad], query_name: str, profile: str) -> int:
-    """Insert/update ads (URL UNIQUE dedup). Returns number of new rows."""
+    """Insert/update ads with URL + fuzzy (cross-portal) dedup.
+
+    Dedup priorita ("bohatsi data vyhravaji", tie-break = first-seen):
+      1. URL UNIQUE — native dedup stejneho inzeratu napric behy.
+      2. Fuzzy klic (title, company, location, normalizovany) — stejny
+         inzerat cross-publikovany na vice portalech (jobs.cz + prace.cz
+         = LMC network). Vyhraje ad s nejbohatsimi daty; portal vitezne
+         ad = zdroj, jehoz URL+portal se zachova. Na stejne skore si
+         podrzi existujici radek (first-seen, bez churn).
+
+    DB round-tripy: 1 batched SELECT pro vsechny fuzzy klice + 1 insert
+    per ad (ON CONFLICT url). Scrape (network-bound) zustava dominantni.
+    """
     if not ads:
         return 0
-    new_count = 0
+
+    # 1) Seskup ady podle fuzzy klice (within-batch dedup pred DB).
+    fk_groups: dict[tuple, list[Ad]] = {}
     for ad in ads:
         if not ad.url:
             continue
+        fk = fuzzy_key(ad)
+        if any(fk):
+            fk_groups.setdefault(fk, []).append(ad)
+
+    # 2) Jeden batched SELECT: existujici fuzzy klice najednou.
+    existing: dict[tuple, list] = {}
+    query_keys = list(fk_groups)
+    if query_keys:
+        titles = [k[0] for k in query_keys]
+        companies = [k[1] for k in query_keys]
+        locations = [k[2] for k in query_keys]
+        rows = conn.execute(
+            "SELECT id, title, company, location, salary, description, url, "
+            "fuzzy_title, fuzzy_company, fuzzy_location "
+            "FROM ads WHERE (fuzzy_title, fuzzy_company, fuzzy_location) IN "
+            "(SELECT * FROM unnest(%s::text[], %s::text[], %s::text[]))",
+            (titles, companies, locations),
+        ).fetchall()
+        for r in rows:
+            fk = (r[7] or "", r[8] or "", r[9] or "")
+            existing.setdefault(fk, []).append(r)
+
+    # 3) Rozhodnuti per fuzzy klic: kdo vyhraje, co se smaze/preskoci.
+    skip_urls: set[str] = set()
+    for fk, group in fk_groups.items():
+        winner = max(group, key=_richness_score)  # tie-break = first in list
+        for a in group:
+            if a is not winner:
+                skip_urls.add(a.url)  # within-batch loser — neinsertovat
+        dups = existing.get(fk, [])
+        if not dups:
+            continue
+        best_existing = max(dups, key=lambda r: _richness_score(_row_to_ad(r)))
+        if _richness_score(winner) <= _richness_score(_row_to_ad(best_existing)):
+            skip_urls.add(winner.url)  # first-seen vyhrava — bez churn
+        else:
+            for r in dups:
+                conn.execute("DELETE FROM ads WHERE id=%s", (r[0],))
+
+    # 4) Insert zbylych ad (ON CONFLICT url = native URL dedup).
+    new_count = 0
+    for ad in ads:
+        if not ad.url or ad.url in skip_urls:
+            continue
+        fk = fuzzy_key(ad)
+        ft, fc, fl = fk if any(fk) else (None, None, None)
         cur = conn.execute(
             "INSERT INTO ads (url, title, company, location, salary, description, "
-            "matched_keyword, portal, query_name, profile) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+            "matched_keyword, portal, query_name, profile, "
+            "fuzzy_title, fuzzy_company, fuzzy_location) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
             "ON CONFLICT (url) DO UPDATE SET "
             "last_seen=CURRENT_DATE, title=EXCLUDED.title, company=EXCLUDED.company, "
             "location=EXCLUDED.location, salary=EXCLUDED.salary, "
             "description=EXCLUDED.description, matched_keyword=EXCLUDED.matched_keyword, "
-            "portal=EXCLUDED.portal, query_name=EXCLUDED.query_name "
+            "portal=EXCLUDED.portal, query_name=EXCLUDED.query_name, "
+            "fuzzy_title=EXCLUDED.fuzzy_title, fuzzy_company=EXCLUDED.fuzzy_company, "
+            "fuzzy_location=EXCLUDED.fuzzy_location "
             "RETURNING (xmax = 0) AS inserted",
             (
                 ad.url,
@@ -122,12 +200,32 @@ def upsert_ads(conn: Any, ads: list[Ad], query_name: str, profile: str) -> int:
                 ad.portal,
                 query_name,
                 profile,
+                ft,
+                fc,
+                fl,
             ),
         )
         row = cur.fetchone()
         if row and row[0]:
             new_count += 1
     return new_count
+
+
+def _row_to_ad(r) -> Ad:
+    """Reconstruct minimal Ad from DB row.
+
+    Row layout (step 2 SELECT): id, title, company, location, salary,
+    description, url, fuzzy_title, fuzzy_company, fuzzy_location.
+    """
+    return Ad(
+        title=r[1] or "",
+        url=r[6] or "",
+        portal="",
+        company=r[2],
+        location=r[3],
+        salary=r[4],
+        description=r[5],
+    )
 
 
 def persist_run(

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import ClassVar
 
-from .utils import strip_emoji
+from .utils import normalize_url, strip_emoji
 
 
 @dataclass
@@ -21,6 +21,14 @@ class Ad:
     category_name: str | None = None
     matched_keyword: str = ""
     scraped_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    def __post_init__(self) -> None:
+        # Canonical URL: strip tracking params (searchId, rps, search_id, utm_*).
+        # GT-090: UNIQUE(url) v DB nechyti duplicity, kdyz se tracking param
+        # meni mezi behy — normalizace musi probehnout pred pouzitim URL jako
+        # dedup klice (pipeline _dedup i DB upsert).
+        if self.url:
+            self.url = normalize_url(self.url)
 
     OPTIONAL_FIELDS: ClassVar[set[str]] = {
         "date",

@@ -18,6 +18,13 @@ CREATE TABLE IF NOT EXISTS ads (
     status TEXT DEFAULT 'new'            -- new / seen / applied / rejected
 );
 
+-- Fuzzy dedup klic: normalizovany (title, company, location) klic pro
+-- cross-portal dedup. Porovnani napric portaly vyzaduje normalizaci
+-- (diakritika, en-dash, whitespace) — raw stringy by selhaly.
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS fuzzy_title TEXT;
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS fuzzy_company TEXT;
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS fuzzy_location TEXT;
+
 CREATE TABLE IF NOT EXISTS pipeline_runs (
     id SERIAL PRIMARY KEY,
     profile TEXT NOT NULL,
@@ -31,4 +38,5 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 
 CREATE INDEX IF NOT EXISTS idx_ads_status ON ads (status);
 CREATE INDEX IF NOT EXISTS idx_ads_portal ON ads (portal);
+CREATE INDEX IF NOT EXISTS idx_ads_fuzzy_title ON ads (fuzzy_title, fuzzy_company, fuzzy_location);
 CREATE INDEX IF NOT EXISTS idx_runs_profile ON pipeline_runs (profile);
