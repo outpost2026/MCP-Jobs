@@ -134,7 +134,9 @@ class BaseScraper(ABC):
     def name(self) -> str: ...
 
     @abstractmethod
-    def parse_listings(self, html_text: str, query: str = "") -> list[Ad]: ...
+    def parse_listings(
+        self, html_text: str, query: str = "", page: int = 1
+    ) -> list[Ad]: ...
 
     @abstractmethod
     def scrape_all(

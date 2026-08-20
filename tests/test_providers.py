@@ -431,7 +431,7 @@ def test_profesia_empty_html():
 
 
 def test_profesia_broken_selector_logs(caplog):
-    """M4 fix: no cards found -> error log (layout change detection)."""
+    """M4 fix: no cards on page 1 -> error log (layout change detection)."""
     import logging
 
     scraper = ProfesiaScraper()
@@ -441,10 +441,45 @@ def test_profesia_broken_selector_logs(caplog):
     assert caplog.records[-1].levelno == logging.ERROR
 
 
+def test_profesia_empty_page_gt1_is_info_not_error(caplog):
+    """End-of-list: 0 cards on page>1 must NOT log ERROR (only INFO)."""
+    import logging
+
+    caplog.set_level(logging.INFO)
+    scraper = ProfesiaScraper()
+    ads = scraper.parse_listings(
+        '<div class="totally-different">x</div>', "metrolog", page=3
+    )
+    assert ads == []
+    assert not any(r.levelno == logging.ERROR for r in caplog.records)
+    assert any(
+        "end of listing" in r.message and r.levelno == logging.INFO
+        for r in caplog.records
+    )
+
+
 def test_profesia_scrape_all_stops_on_empty():
     scraper = ProfesiaScraper()
     ads = scraper.scrape_all("https://www.profesia.cz/prace/praha/", max_pages=2)
     assert isinstance(ads, list)
+
+
+def test_profesia_scrape_all_break_on_end_of_list(caplog):
+    """Page 2 with 0 cards = end of list -> break, no ERROR, page count correct."""
+    import logging
+
+    caplog.set_level(logging.INFO)
+    page1_html = PROFESIA_HTML
+
+    class _EndClient:
+        def get_text(self, url):
+            return page1_html if "page_num=" not in url else "<html></html>"
+
+    scraper = ProfesiaScraper(http_client=_EndClient())
+    ads = scraper.scrape_all("https://www.profesia.cz/prace/praha/", max_pages=3)
+    assert len(ads) == 1
+    assert not any(r.levelno == logging.ERROR for r in caplog.records)
+    assert any("end of listing" in r.message for r in caplog.records)
 
 
 def test_profesia_fetch_detail_returns_description():

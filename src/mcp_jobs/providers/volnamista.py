@@ -134,7 +134,7 @@ class VolnamistaScraper(BaseScraper):
             if not text:
                 break
 
-            ads = self.parse_listings(text, "")
+            ads = self.parse_listings(text, "", page)
             new = 0
             for ad in ads:
                 if ad.url not in seen_urls:
@@ -151,7 +151,9 @@ class VolnamistaScraper(BaseScraper):
 
         return all_ads
 
-    def parse_listings(self, html_text: str, query: str = "") -> list[Ad]:
+    def parse_listings(
+        self, html_text: str, query: str = "", page: int = 1
+    ) -> list[Ad]:
         soup = BeautifulSoup(html_text, "html.parser")
         ads: list[Ad] = []
 
@@ -207,10 +209,17 @@ class VolnamistaScraper(BaseScraper):
                 logger.warning("%s: failed to parse card: %s", self.name, e)
 
         if not cards:
-            logger.error(
-                "%s: container selector returned 0 cards — likely broken (page layout change)",
-                self.name,
-            )
+            if page <= 1:
+                logger.error(
+                    "%s: container selector returned 0 cards — likely broken (page layout change)",
+                    self.name,
+                )
+            else:
+                logger.info(
+                    "%s: 0 cards on page %d — end of listing reached, stopping",
+                    self.name,
+                    page,
+                )
         elif cards and not ads:
             logger.error(
                 "%s: found %d cards but parsed 0 ads — selector likely broken",
