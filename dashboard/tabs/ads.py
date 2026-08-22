@@ -9,7 +9,6 @@ import streamlit as st
 
 from dashboard.components.gatekeeper import render_gatekeeper
 from dashboard.components.kpi import render_kpi
-from dashboard.components.styling import completeness_color
 from dashboard.metrics import fetch_ads
 
 
@@ -54,6 +53,7 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
         display_cols = [
             "id",
             "title",
+            "url",
             "company",
             "location",
             "salary",
@@ -64,16 +64,25 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
             "portal",
             "query_name",
         ]
-        # Replace full URL with short domain label to reduce noise
-        if "url" in df_ads.columns:
-            df_ads["url_short"] = df_ads["url"].apply(
-                lambda u: u.split("//")[-1].split("/")[0] if isinstance(u, str) else "-"
-            )
-            display_cols.insert(2, "url_short")
-        styled = df_ads[display_cols].style.map(
-            completeness_color, subset=["completeness_label"]
+        st.dataframe(
+            df_ads[display_cols],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "id": st.column_config.NumberColumn("ID", width="small"),
+                "title": st.column_config.TextColumn("Nazev", width="large"),
+                "url": st.column_config.LinkColumn("Odkaz", display_text="link"),
+                "company": st.column_config.TextColumn("Firma"),
+                "location": st.column_config.TextColumn("Lokace"),
+                "salary": st.column_config.TextColumn("Mzda"),
+                "status": st.column_config.TextColumn("Status"),
+                "completeness_label": st.column_config.TextColumn("Data %"),
+                "first_seen": st.column_config.DateColumn("Prvni videni"),
+                "desc_preview": st.column_config.TextColumn("Popis"),
+                "portal": st.column_config.TextColumn("Portal"),
+                "query_name": st.column_config.TextColumn("Query"),
+            },
         )
-        st.write(styled, use_container_width=True)
     else:
         st.info("Zadne inzeraty pro vybrane filtry.")
 
