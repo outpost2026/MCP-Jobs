@@ -109,9 +109,12 @@ class BazosScraper(BaseScraper):
                 page_url = url
             else:
                 offset = (page - 1) * 20
-                page_url = f"{url.rstrip('/')}/{offset}/"
-            if query_suffix:
-                page_url += query_suffix
+                # Bazos pagination: insert offset into path, keep query params after
+                # e.g. /brigada/ -> /brigada/20/?params
+                path = url.rstrip("/")
+                page_url = f"{path}/{offset}/"
+                if query_suffix:
+                    page_url += query_suffix
 
             text = self._fetch_page(page_url)
             if not text:
