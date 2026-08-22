@@ -9,6 +9,7 @@ Usage:
 
 from __future__ import annotations
 
+import html as _html
 import os
 import sys
 from datetime import UTC, datetime
@@ -194,6 +195,13 @@ def render_gatekeeper(total_ads: int, last_run_status: str | None) -> None:
             Posledni beh uspesny, data aktualni.</p></div>""",
             unsafe_allow_html=True,
         )
+    elif last_run_status == "completed" and total_ads <= 10:
+        st.markdown(
+            f"""<div class="gatekeeper-warn"><h4 style="color: #F59E0B !important; margin-top: 0;">
+            Pipeline OK, ale malo dat ({total_ads} inzeratu)</h4><p style="color: #94A3B8; font-size: 14px;">
+            Beh uspesny, ale vysledky chybi. Zkontroluj config.yaml nebo pridej query.</p></div>""",
+            unsafe_allow_html=True,
+        )
     elif last_run_status == "failed":
         st.markdown(
             """<div class="gatekeeper-critical"><h4 style="color: #F43F5E !important; margin-top: 0;">
@@ -261,11 +269,15 @@ with tab_ads:
     sql = f"SELECT * FROM ads WHERE {where_sql} ORDER BY first_seen DESC, title"
     df_ads = run_query(sql, tuple(params))
 
-    # Gatekeeper
-    df_runs = run_query(
-        "SELECT status FROM pipeline_runs ORDER BY started_at DESC LIMIT 1"
-    )
-    last_status = df_runs.iloc[0]["status"] if len(df_runs) > 0 else None
+    # Gatekeeper (cached — only re-queries after status update)
+    if "last_run_status" not in st.session_state:
+        df_runs = run_query(
+            "SELECT status FROM pipeline_runs ORDER BY started_at DESC LIMIT 1"
+        )
+        st.session_state.last_run_status = (
+            df_runs.iloc[0]["status"] if len(df_runs) > 0 else None
+        )
+    last_status = st.session_state.last_run_status
     render_gatekeeper(len(df_ads), last_status)
 
     # KPI
@@ -276,30 +288,23 @@ with tab_ads:
     # Table
     if len(df_ads) > 0:
         df_ads["desc_preview"] = df_ads["description"].fillna("").str[:80]
-        df_ads["completeness"] = df_ads.apply(
-            lambda r: round(
-                sum(
-                    [
-                        1 if pd.notna(r.get("title")) else 0,
-                        1
-                        if pd.notna(r.get("company")) and r.get("company") != ""
-                        else 0,
-                        1
-                        if pd.notna(r.get("location")) and r.get("location") != ""
-                        else 0,
-                        1 if pd.notna(r.get("salary")) and r.get("salary") != "" else 0,
-                        1
-                        if pd.notna(r.get("description"))
-                        and len(str(r.get("description", ""))) > 50
-                        else 0,
-                        1 if pd.notna(r.get("matched_keyword")) else 0,
-                    ]
-                )
-                * 100
-                / 6,
-                0,
-            ),
-            axis=1,
+        has_title = df_ads["title"].notna()
+        has_company = df_ads["company"].notna() & (df_ads["company"] != "")
+        has_location = df_ads["location"].notna() & (df_ads["location"] != "")
+        has_salary = df_ads["salary"].notna() & (df_ads["salary"] != "")
+        has_desc = df_ads["description"].fillna("").str.len() > 50
+        has_keyword = df_ads["matched_keyword"].notna()
+        df_ads["completeness"] = (
+            (
+                has_title.astype(int)
+                + has_company.astype(int)
+                + has_location.astype(int)
+                + has_salary.astype(int)
+                + has_desc.astype(int)
+                + has_keyword.astype(int)
+            )
+            * 100
+            // 6
         )
         df_ads["completeness_label"] = df_ads["completeness"].apply(lambda x: f"{x}%")
         display_cols = [
@@ -376,7 +381,7 @@ with tab_ads:
                     f"""<div class="detail-desc"><textarea
                     style="width:100%;height:300px;font-size:14px;color:#CBD5E1;
                     background:#1E293B;border:1px solid #334155;border-radius:8px;
-                    padding:12px;resize:vertical;" disabled>{r["description"] or "Zadny popis."}</textarea></div>""",
+                    padding:12px;resize:vertical;" disabled>{_html.escape(str(r["description"] or "Zadny popis."))}</textarea></div>""",
                     unsafe_allow_html=True,
                 )
                 st.markdown(f"[Otevrit na portale]({r['url']})")
@@ -404,6 +409,7 @@ with tab_ads:
                     "UPDATE ads SET status = %s WHERE id = %s", (new_status, update_id)
                 )
                 st.success(f"Inzerat #{update_id} -> {new_status}")
+                st.session_state.pop("last_run_status", None)
                 st.rerun()
 
     # Download
@@ -575,16 +581,19 @@ with tab_analysis:
         unsafe_allow_html=True,
     )
     df_salary = run_query(
-        "SELECT portal, query_name, "
-        "COUNT(*) AS ads_with_salary, "
-        "ROUND(AVG(CAST(REGEXP_REPLACE(SUBSTRING(salary FROM '(\\d[\\d\\s]*)'), "
-        "'\\s', '', 'g') AS NUMERIC)), 0) AS avg_salary, "
-        "MIN(CAST(REGEXP_REPLACE(SUBSTRING(salary FROM '(\\d[\\d\\s]*)'), "
-        "'\\s', '', 'g') AS NUMERIC)) AS min_salary, "
-        "MAX(CAST(REGEXP_REPLACE(SUBSTRING(salary FROM '(\\d[\\d\\s]*)'), "
-        "'\\s', '', 'g') AS NUMERIC)) AS max_salary "
-        "FROM ads WHERE salary IS NOT NULL AND salary ~ '\\d' "
-        "GROUP BY portal, query_name ORDER BY avg_salary DESC"
+        "WITH salary_parsed AS ("
+        "  SELECT portal, query_name, salary,"
+        "    REGEXP_REPLACE(SUBSTRING(salary FROM '(\\d[\\d\\s]*)'), '\\s', '', 'g') AS num1,"
+        "    REGEXP_REPLACE(SUBSTRING(salary FROM '\\d[\\d\\s]*\\s*-\\s*(\\d[\\d\\s]*)'), '\\s', '', 'g') AS num2"
+        "  FROM ads WHERE salary IS NOT NULL AND salary ~ '\\d'"
+        ")"
+        "SELECT portal, query_name,"
+        "  COUNT(*) AS ads_with_salary,"
+        "  ROUND(AVG(CASE WHEN num2 != '' THEN (CAST(num1 AS NUMERIC) + CAST(num2 AS NUMERIC)) / 2"
+        "                  ELSE CAST(num1 AS NUMERIC) END), 0) AS avg_salary,"
+        "  MIN(CAST(num1 AS NUMERIC)) AS min_salary,"
+        "  MAX(CASE WHEN num2 != '' THEN CAST(num2 AS NUMERIC) ELSE CAST(num1 AS NUMERIC) END) AS max_salary"
+        " FROM salary_parsed GROUP BY portal, query_name ORDER BY avg_salary DESC"
     )
     if len(df_salary) > 0:
         col1, col2 = st.columns(2)
@@ -604,9 +613,22 @@ with tab_analysis:
             )
         with col2:
             df_salary_chart = (
-                df_salary.groupby("portal")["avg_salary"].mean().reset_index()
+                df_salary.groupby("portal")
+                .apply(
+                    lambda g: pd.Series(
+                        {
+                            "avg_salary": round(
+                                (g["avg_salary"] * g["ads_with_salary"]).sum()
+                                / g["ads_with_salary"].sum(),
+                                0,
+                            ),
+                            "ads": g["ads_with_salary"].sum(),
+                        }
+                    )
+                )
+                .reset_index()
             )
-            st.bar_chart(df_salary_chart.set_index("portal"))
+            st.bar_chart(df_salary_chart.set_index("portal")["avg_salary"])
     else:
         st.info("Zadna data o mzdach k analyze.")
 
@@ -615,6 +637,9 @@ with tab_analysis:
     st.markdown(
         "<p class='section-header'>Freshness (casova analyza)</p>",
         unsafe_allow_html=True,
+    )
+    st.caption(
+        "Poznamka: 'Jen 1 den' znamena inzerat nalezen jen pri jednom behu pipeline. Zavisi na frekvenci behu."
     )
     df_freshness = run_query(
         "SELECT first_seen, "
@@ -656,12 +681,12 @@ with tab_analysis:
         unsafe_allow_html=True,
     )
     df_funnel = run_query(
-        "SELECT status, COUNT(*) AS count, "
+        "SELECT COALESCE(status, '(bez statusu)') AS status, COUNT(*) AS count, "
         "ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM ads), 1) AS pct "
-        "FROM ads WHERE status IS NOT NULL GROUP BY status "
+        "FROM ads GROUP BY status "
         "ORDER BY CASE status "
         "WHEN 'new' THEN 1 WHEN 'seen' THEN 2 "
-        "WHEN 'applied' THEN 3 WHEN 'rejected' THEN 4 END"
+        "WHEN 'applied' THEN 3 WHEN 'rejected' THEN 4 ELSE 5 END"
     )
     if len(df_funnel) > 0:
         cols = st.columns(len(df_funnel))
