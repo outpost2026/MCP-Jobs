@@ -83,16 +83,18 @@ def normalize_url(url: str) -> str:
 _DASHES_RE = re.compile("[\u2013\u2014\u2012]")
 
 
+_PRAHA_RE = re.compile(r"^(hlavni\s+mesto\s+praha|praha\s*-\s*|praha\s+)|,\s*praha$")
+
+
 def _fuzzy_norm(text: str) -> str:
     """Normalizuj text pro fuzzy dedup: lowercase, bez diakritiky, dash->'-'.
 
-    Prah srovnavani (title, company, location) muze mezi portaly driftovat:
-    'Praha-Uhrineves' (pracecz) vs 'Praha - Uhrineves' (jobs.cz) — en-dash,
-    mezery, diakritika. Pro stabilni cross-portal dedup normalizujeme:
     - lowercase
-    - NFKD + strip diakritiky (Uhrineves -> Uhrineves)
+    - NFKD + strip diakritiky
     - pomlcky (en/em) -> '-'
     - kolaps whitespace a sezevani kolem pomlcek
+    - Praha normalizace: 'Hlavní město Praha' -> 'praha',
+      'Praha-Vysočany' -> 'vysocany', 'Praha - Nusle' -> 'nusle'
     """
     if not text:
         return ""
@@ -102,19 +104,20 @@ def _fuzzy_norm(text: str) -> str:
     t = _DASHES_RE.sub("-", t)
     t = re.sub(r"\s+", " ", t)
     t = re.sub(r"\s*-\s*", "-", t)
+    t = _PRAHA_RE.sub("", t)
     return t
 
 
-def fuzzy_key(ad: Ad) -> tuple[str, str, str]:
-    """Kanonicky fuzzy dedup klic (title, company, location).
+def fuzzy_key(ad: Ad) -> tuple[str, str]:
+    """Kanonicky fuzzy dedup klic (title, company).
 
-    Sdilen mezi pipeline _dedup a DB-level dedup — jinak by in-memory
-    logika a DB chovani divergovaly (jedna cast chyti duplicitu, druha ne).
+    Location je vyloucena — portaly ji formatuji nesourodce
+    ('Vysočany, Praha' vs 'Praha-Vysočany'), coz zpusobuje miss dedupu.
+    Sdilen mezi pipeline _dedup a DB-level dedup.
     """
     if not hasattr(ad, "title"):
-        return ("", "", "")
+        return ("", "")
     return (
         _fuzzy_norm(ad.title),
         _fuzzy_norm(ad.company or ""),
-        _fuzzy_norm(ad.location or ""),
     )

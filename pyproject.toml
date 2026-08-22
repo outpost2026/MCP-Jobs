@@ -22,6 +22,9 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
 ]
+dashboard = [
+    "streamlit>=1.38.0",
+]
 
 [project.scripts]
 mcp-jobs = "mcp_jobs.cli:main"
@@ -52,7 +55,8 @@ select = ["E4", "E7", "E9", "F", "W", "I", "UP", "RUF", "PIE", "FURB", "DTZ"]
 ignore = ["BLE001"]
 
 [tool.ruff.lint.per-file-ignores]
-# E402: scripty dělají sys.path.insert(0, src) před importem mcp_jobs —
-# záměrný vzor standalone scriptů (ne moduly).
+# E402: scripty delaji sys.path.insert(0, src) pred importem mcp_jobs —
+# zamerny vzor standalone scriptu (ne moduly).
 "scripts/*.py" = ["E402"]
 "tests/live_scrapers.py" = ["E402"]
+"dashboard.py" = ["E402"]

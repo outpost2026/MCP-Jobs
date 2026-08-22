@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import Ad
-from .utils import fuzzy_key
+from .utils import _fuzzy_norm, fuzzy_key
 
 logger = logging.getLogger(__name__)
 
@@ -140,16 +140,15 @@ def upsert_ads(conn: Any, ads: list[Ad], query_name: str, profile: str) -> int:
     if query_keys:
         titles = [k[0] for k in query_keys]
         companies = [k[1] for k in query_keys]
-        locations = [k[2] for k in query_keys]
         rows = conn.execute(
             "SELECT id, title, company, location, salary, description, url, "
-            "fuzzy_title, fuzzy_company, fuzzy_location "
-            "FROM ads WHERE (fuzzy_title, fuzzy_company, fuzzy_location) IN "
-            "(SELECT * FROM unnest(%s::text[], %s::text[], %s::text[]))",
-            (titles, companies, locations),
+            "fuzzy_title, fuzzy_company "
+            "FROM ads WHERE (fuzzy_title, fuzzy_company) IN "
+            "(SELECT * FROM unnest(%s::text[], %s::text[]))",
+            (titles, companies),
         ).fetchall()
         for r in rows:
-            fk = (r[7] or "", r[8] or "", r[9] or "")
+            fk = (r[7] or "", r[8] or "")
             existing.setdefault(fk, []).append(r)
 
     # 3) Rozhodnuti per fuzzy klic: kdo vyhraje, co se smaze/preskoci.
@@ -175,7 +174,8 @@ def upsert_ads(conn: Any, ads: list[Ad], query_name: str, profile: str) -> int:
         if not ad.url or ad.url in skip_urls:
             continue
         fk = fuzzy_key(ad)
-        ft, fc, fl = fk if any(fk) else (None, None, None)
+        ft, fc = fk if any(fk) else (None, None)
+        fl = _fuzzy_norm(ad.location or "") or None
         cur = conn.execute(
             "INSERT INTO ads (url, title, company, location, salary, description, "
             "matched_keyword, portal, query_name, profile, "

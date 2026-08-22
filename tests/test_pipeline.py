@@ -107,7 +107,11 @@ def test_dedup_normalized():
 
 
 def test_dedup_same_title_company_different_location_kept():
-    """C1 fix: same title+company, different URL and location -> both kept."""
+    """Same title+company, different location -> deduplicated (fuzzy key = title+company only).
+
+    Location is excluded from fuzzy key because portals format it inconsistently
+    ('Praha-Vysočany' vs 'Vysočany, Praha'). Same title+company = same job.
+    """
     ads = [
         Ad(
             title="Technik",
@@ -125,7 +129,7 @@ def test_dedup_same_title_company_different_location_kept():
         ),
     ]
     result = _dedup(ads)
-    assert len(result) == 2
+    assert len(result) == 1  # fuzzy dedup: same title+company = 1 ad
 
 
 def test_dedup_fuzzy_drop_logs_warning(caplog):

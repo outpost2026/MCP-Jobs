@@ -128,4 +128,4 @@ def test_fuzzy_key_empty_fields():
     k = fuzzy_key(ad)
     assert k[0] == "only title"
     assert k[1] == ""  # company None -> ""
-    assert k[2] == ""  # location None -> ""
+    assert len(k) == 2  # fuzzy_key returns (title, company) only

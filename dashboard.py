@@ -1,0 +1,507 @@
+"""MCP-Jobs Dashboard — Streamlit frontend for job listing analytics.
+
+Pandas-powered: proper DataFrames, groupby, time series, merge.
+Adapted from vcf_integrace/app.py patterns (dark theme, KPI cards, gatekeeper).
+
+Usage:
+    streamlit run dashboard.py
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+
+import pandas as pd
+import streamlit as st
+
+# -- Encoding safety (Windows cp1250) --
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+_REPO_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(_REPO_ROOT / "src"))
+
+from mcp_jobs.db import connect, get_database_url, init_db
+
+# ─── Authentication ──────────────────────────────────────────────────────────
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("MCP-Jobs Dashboard")
+    pwd = st.text_input("Pristupove heslo", type="password")
+    if st.button("Pristoupit"):
+        if pwd == os.environ.get("MCPJOBS_DASH_PWD", "mcpjobs-demo-2026"):
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Nespravne heslo")
+    st.stop()
+
+# ─── Page config ─────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="MCP-Jobs Dashboard",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+# ─── Dark theme CSS (adapted from vcf_integrace) ─────────────────────────────
+st.markdown(
+    """
+<style>
+    .stApp { background-color: #0F172A; color: #F8FAFC; }
+    h1, h2, h3, h4 { font-family: 'Inter', -apple-system, sans-serif !important;
+                       font-weight: 700 !important; color: #F8FAFC !important; }
+    .metric-card {
+        background-color: #1E293B; border: 1px solid #334155;
+        border-radius: 12px; padding: 24px; text-align: center;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    }
+    .metric-value { font-size: 32px; font-weight: 800; color: #10B981; }
+    .metric-label { font-size: 14px; color: #94A3B8; text-transform: uppercase;
+                    letter-spacing: 0.05em; }
+    .gatekeeper-ok {
+        background-color: #064E3B; border-left: 6px solid #10B981;
+        border-radius: 8px; padding: 20px; margin-bottom: 20px;
+    }
+    .gatekeeper-warn {
+        background-color: #1E2030; border-left: 6px solid #F59E0B;
+        border-radius: 8px; padding: 20px; margin-bottom: 20px;
+    }
+    .gatekeeper-critical {
+        background-color: #1E2030; border-left: 6px solid #F43F5E;
+        border-radius: 8px; padding: 20px; margin-bottom: 20px;
+    }
+    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
+    .stTabs [data-baseweb="tab"] { color: #94A3B8; font-weight: 600; }
+    .stTabs [aria-selected="true"] { color: #10B981 !important; }
+    .stButton > button {
+        background-color: #10B981; color: #0F172A; font-weight: 700;
+        border: none; border-radius: 8px;
+    }
+    .stButton > button:hover { background-color: #059669; }
+    .section-header {
+        font-size: 14px; font-weight: 700; color: #94A3B8;
+        margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .detail-desc textarea {
+        font-size: 14px !important;
+        color: #CBD5E1 !important;
+    }
+    .download-section {
+        margin-top: 24px; padding: 16px; background: #111827;
+        border-radius: 10px; border: 1px solid #1E293B;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    "<h1 style='text-align: center; margin-bottom: 5px;'>MCP-Jobs Dashboard</h1>",
+    unsafe_allow_html=True,
+)
+st.markdown(
+    "<p style='text-align: center; color: #94A3B8; font-size: 16px; "
+    "margin-bottom: 10px;'>CZ job portal analytics | EROI-scored listings</p>",
+    unsafe_allow_html=True,
+)
+
+# ─── DB connection ────────────────────────────────────────────────────────────
+DB_URL = get_database_url()
+if not DB_URL:
+    st.error("DATABASE_URL neni nastaven. Uprav .env soubor.")
+    st.stop()
+
+try:
+    conn = connect(DB_URL)
+    init_db(conn)
+except Exception as e:
+    st.error(f"Chyba pripojeni k DB: {e}")
+    st.stop()
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+def run_query(sql: str, params: tuple = ()) -> pd.DataFrame:
+    """Execute SQL, return DataFrame."""
+    return pd.read_sql(sql, conn, params=params)
+
+
+# ─── KPI metrics ──────────────────────────────────────────────────────────────
+def render_kpi(df: pd.DataFrame) -> None:
+    """Render KPI cards from filtered DataFrame."""
+    total = len(df)
+    portals = df["portal"].nunique()
+    companies = df["company"].nunique()
+    new_today = len(df[df["first_seen"] == datetime.now(tz=UTC).date()])
+    with_salary = df["salary"].notna().sum()
+
+    k1, k2, k3, k4, k5 = st.columns(5)
+    with k1:
+        st.markdown(
+            f"""<div class="metric-card"><div class="metric-label">Celkem inzeratu</div>
+            <div class="metric-value">{total}</div></div>""",
+            unsafe_allow_html=True,
+        )
+    with k2:
+        st.markdown(
+            f"""<div class="metric-card"><div class="metric-label">Portalu</div>
+            <div class="metric-value">{portals}</div></div>""",
+            unsafe_allow_html=True,
+        )
+    with k3:
+        st.markdown(
+            f"""<div class="metric-card"><div class="metric-label">Unikatnich firem</div>
+            <div class="metric-value">{companies}</div></div>""",
+            unsafe_allow_html=True,
+        )
+    with k4:
+        st.markdown(
+            f"""<div class="metric-card"><div class="metric-label">Novych (dnes)</div>
+            <div class="metric-value">{new_today}</div></div>""",
+            unsafe_allow_html=True,
+        )
+    with k5:
+        st.markdown(
+            f"""<div class="metric-card"><div class="metric-label">Se mzdou</div>
+            <div class="metric-value">{with_salary}</div></div>""",
+            unsafe_allow_html=True,
+        )
+
+
+# ─── Gatekeeper: pipeline health ──────────────────────────────────────────────
+def render_gatekeeper(total_ads: int, last_run_status: str | None) -> None:
+    """Render pipeline health gatekeeper."""
+    if last_run_status == "completed" and total_ads > 10:
+        st.markdown(
+            """<div class="gatekeeper-ok"><h4 style="color: #10B981 !important; margin-top: 0;">
+            Pipeline OK</h4><p style="color: #94A3B8; font-size: 14px;">
+            Posledni beh uspesny, data aktualni.</p></div>""",
+            unsafe_allow_html=True,
+        )
+    elif last_run_status == "failed":
+        st.markdown(
+            """<div class="gatekeeper-critical"><h4 style="color: #F43F5E !important; margin-top: 0;">
+            Pipeline FAILED</h4><p style="color: #94A3B8; font-size: 14px;">
+            Posledni beh selhal. Zkontroluj logy.</p></div>""",
+            unsafe_allow_html=True,
+        )
+    elif total_ads <= 10:
+        st.markdown(
+            f"""<div class="gatekeeper-warn"><h4 style="color: #F59E0B !important; margin-top: 0;">
+            Malo dat ({total_ads} inzeratu)</h4><p style="color: #94A3B8; font-size: 14px;">
+            Spust ETL pipeline pro naplneni DB.</p></div>""",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            """<div class="gatekeeper-warn"><h4 style="color: #F59E0B !important; margin-top: 0;">
+            Zadny beh v historii</h4><p style="color: #94A3B8; font-size: 14px;">
+            Spust pipeline poprve.</p></div>""",
+            unsafe_allow_html=True,
+        )
+
+
+# ─── Tabs ─────────────────────────────────────────────────────────────────────
+tab_ads, tab_runs, tab_stats = st.tabs(["Inzeraty", "Historie behu", "Statistiky"])
+
+# ─── TAB: Inzeraty ────────────────────────────────────────────────────────────
+with tab_ads:
+    # Filters
+    f1, f2, f3, f4 = st.columns(4)
+    with f1:
+        portals = run_query(
+            "SELECT DISTINCT portal FROM ads WHERE portal IS NOT NULL ORDER BY portal"
+        )["portal"].tolist()
+        portal_filter = st.selectbox("Portal", ["Vse", *portals])
+    with f2:
+        queries = run_query(
+            "SELECT DISTINCT query_name FROM ads WHERE query_name IS NOT NULL ORDER BY query_name"
+        )["query_name"].tolist()
+        query_filter = st.selectbox("Query", ["Vse", *queries])
+    with f3:
+        status_filter = st.selectbox(
+            "Status", ["Vse", "new", "seen", "applied", "rejected"]
+        )
+    with f4:
+        search = st.text_input("Hledat v nazvu/firme")
+
+    # Build query
+    where_clauses = []
+    params: list = []
+    if portal_filter != "Vse":
+        where_clauses.append("portal = %s")
+        params.append(portal_filter)
+    if query_filter != "Vse":
+        where_clauses.append("query_name = %s")
+        params.append(query_filter)
+    if status_filter != "Vse":
+        where_clauses.append("status = %s")
+        params.append(status_filter)
+    if search:
+        where_clauses.append("(title ILIKE %s OR company ILIKE %s)")
+        params.extend([f"%{search}%", f"%{search}%"])
+
+    where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+    sql = f"SELECT * FROM ads WHERE {where_sql} ORDER BY first_seen DESC, title"
+    df_ads = run_query(sql, tuple(params))
+
+    # Gatekeeper
+    df_runs = run_query(
+        "SELECT status FROM pipeline_runs ORDER BY started_at DESC LIMIT 1"
+    )
+    last_status = df_runs.iloc[0]["status"] if len(df_runs) > 0 else None
+    render_gatekeeper(len(df_ads), last_status)
+
+    # KPI
+    render_kpi(df_ads)
+
+    st.markdown("---")
+
+    # Table
+    if len(df_ads) > 0:
+        df_ads["desc_preview"] = df_ads["description"].fillna("").str[:80]
+        display_cols = [
+            "id",
+            "title",
+            "url",
+            "company",
+            "status",
+            "first_seen",
+            "desc_preview",
+            "portal",
+            "salary",
+            "query_name",
+            "location",
+        ]
+        st.dataframe(
+            df_ads[display_cols],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "id": st.column_config.NumberColumn("ID", width="small"),
+                "title": st.column_config.TextColumn("Nazev", width="large"),
+                "company": st.column_config.TextColumn("Firma"),
+                "status": st.column_config.TextColumn("Status"),
+                "first_seen": st.column_config.DateColumn("Prvni videni"),
+                "desc_preview": st.column_config.TextColumn("Popis"),
+                "portal": st.column_config.TextColumn("Portal"),
+                "salary": st.column_config.TextColumn("Mzda"),
+                "query_name": st.column_config.TextColumn("Query"),
+                "location": st.column_config.TextColumn("Lokace"),
+                "url": st.column_config.LinkColumn("Odkaz", display_text="url"),
+            },
+        )
+    else:
+        st.info("Zadne inzeraty pro vybrane filtry.")
+
+    # Detail view
+    if len(df_ads) > 0:
+        st.markdown("---")
+        st.markdown(
+            "<p class='section-header'>Detail inzeratu</p>", unsafe_allow_html=True
+        )
+        detail_col1, detail_col2 = st.columns([1, 3])
+        with detail_col1:
+            detail_id = st.number_input(
+                "Zadej ID pro detail", min_value=1, step=1, key="detail_id"
+            )
+        with detail_col2:
+            st.write("")
+            st.write("")
+            show_detail = st.button("Zobrazit detail")
+        if show_detail:
+            df_detail = run_query("SELECT * FROM ads WHERE id = %s", (detail_id,))
+            if len(df_detail) > 0:
+                r = df_detail.iloc[0]
+                st.markdown(f"### {r['title']}")
+                m1, m2, m3 = st.columns(3)
+                with m1:
+                    st.markdown(f"**Firma:** {r['company'] or '-'}")
+                    st.markdown(f"**Lokace:** {r['location'] or '-'}")
+                    st.markdown(f"**Portal:** {r['portal'] or '-'}")
+                with m2:
+                    st.markdown(f"**Mzda:** {r['salary'] or '-'}")
+                    st.markdown(f"**Query:** {r['query_name'] or '-'}")
+                    st.markdown(f"**Status:** {r['status'] or '-'}")
+                with m3:
+                    st.markdown(f"**Prvni videni:** {r['first_seen']}")
+                    st.markdown(f"**Keyword:** {r['matched_keyword'] or '-'}")
+                st.markdown("---")
+                st.markdown("**Popis:**")
+                st.markdown(
+                    f"""<div class="detail-desc"><textarea
+                    style="width:100%;height:300px;font-size:14px;color:#CBD5E1;
+                    background:#1E293B;border:1px solid #334155;border-radius:8px;
+                    padding:12px;resize:vertical;" disabled>{r["description"] or "Zadny popis."}</textarea></div>""",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(f"[Otevrit na portale]({r['url']})")
+            else:
+                st.warning(f"Inzerat s ID {detail_id} nebyl nalezen.")
+
+    # Status update
+    if len(df_ads) > 0:
+        st.markdown("---")
+        st.markdown(
+            "<p class='section-header'>Zmena statusu</p>", unsafe_allow_html=True
+        )
+        up_col1, up_col2, up_col3 = st.columns([2, 2, 1])
+        with up_col1:
+            update_id = st.number_input("ID inzeratu", min_value=1, step=1)
+        with up_col2:
+            new_status = st.selectbox(
+                "Novy status", ["new", "seen", "applied", "rejected"]
+            )
+        with up_col3:
+            st.write("")
+            st.write("")
+            if st.button("Aktualizovat"):
+                conn.execute(
+                    "UPDATE ads SET status = %s WHERE id = %s", (new_status, update_id)
+                )
+                st.success(f"Inzerat #{update_id} -> {new_status}")
+                st.rerun()
+
+    # Download
+    st.markdown("---")
+    st.markdown("<div class='download-section'>", unsafe_allow_html=True)
+    st.markdown("<p class='section-header'>Stahnout data</p>", unsafe_allow_html=True)
+    d1, d2, d3 = st.columns(3)
+    with d1:
+        csv_data = df_ads.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "CSV export", data=csv_data, file_name="mcpjobs_ads.csv", mime="text/csv"
+        )
+    with d2:
+        json_data = df_ads.to_json(
+            orient="records", force_ascii=False, indent=2
+        ).encode("utf-8")
+        st.download_button(
+            "JSON export",
+            data=json_data,
+            file_name="mcpjobs_ads.json",
+            mime="application/json",
+        )
+    with d3:
+        md_lines = ["# MCP-Jobs Report\n"]
+        md_lines.append(f"**Celkem inzeratu:** {len(df_ads)}\n")
+        md_lines.append(f"**Portalu:** {df_ads['portal'].nunique()}\n")
+        md_lines.append(f"**Firem:** {df_ads['company'].nunique()}\n\n")
+        md_lines.append("## Inzeraty\n\n")
+        for _, row in df_ads.head(50).iterrows():
+            md_lines.append(
+                f"- **{row['title']}** - {row['company']}, {row['location']}"
+            )
+            if pd.notna(row["salary"]):
+                md_lines.append(f"  - Mzda: {row['salary']}")
+            md_lines.append("")
+        st.download_button(
+            "Markdown report",
+            data="".join(md_lines).encode("utf-8"),
+            file_name="mcpjobs_report.md",
+            mime="text/markdown",
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ─── TAB: Historie behu ───────────────────────────────────────────────────────
+with tab_runs:
+    st.markdown("### Historie pipeline behu")
+    df_runs = run_query(
+        "SELECT id, profile, status, matched, raw, "
+        "started_at, completed_at, metadata "
+        "FROM pipeline_runs ORDER BY started_at DESC LIMIT 50"
+    )
+    if len(df_runs) > 0:
+        df_display = df_runs.copy()
+        df_display["new_ads"] = df_display["metadata"].apply(
+            lambda x: x.get("new_ads", 0) if isinstance(x, dict) else 0
+        )
+        df_display["elapsed_s"] = df_display["metadata"].apply(
+            lambda x: x.get("elapsed_seconds", 0) if isinstance(x, dict) else 0
+        )
+        st.dataframe(
+            df_display[
+                [
+                    "id",
+                    "profile",
+                    "status",
+                    "matched",
+                    "raw",
+                    "new_ads",
+                    "elapsed_s",
+                    "started_at",
+                ]
+            ],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "id": st.column_config.NumberColumn("Run ID"),
+                "profile": st.column_config.TextColumn("Profil"),
+                "status": st.column_config.TextColumn("Status"),
+                "matched": st.column_config.NumberColumn("Matched"),
+                "raw": st.column_config.NumberColumn("Raw"),
+                "new_ads": st.column_config.NumberColumn("Novych"),
+                "elapsed_s": st.column_config.NumberColumn("Cas (s)"),
+                "started_at": st.column_config.DatetimeColumn("Zacatek"),
+            },
+        )
+    else:
+        st.info("Zadne behy v historii.")
+
+# ─── TAB: Statistiky ──────────────────────────────────────────────────────────
+with tab_stats:
+    st.markdown("### Prehledove statistiky")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### Distribuce podle portalu")
+        df_portal = run_query(
+            "SELECT portal, COUNT(*) as count FROM ads "
+            "WHERE portal IS NOT NULL GROUP BY portal ORDER BY count DESC"
+        )
+        if len(df_portal) > 0:
+            st.bar_chart(df_portal.set_index("portal"))
+
+    with col2:
+        st.markdown("#### Top dotazy (queries)")
+        df_queries = run_query(
+            "SELECT query_name, COUNT(*) as count FROM ads "
+            "WHERE query_name IS NOT NULL GROUP BY query_name "
+            "ORDER BY count DESC LIMIT 10"
+        )
+        if len(df_queries) > 0:
+            st.bar_chart(df_queries.set_index("query_name"))
+
+    st.markdown("#### Distribuce podle statusu")
+    df_status = run_query(
+        "SELECT status, COUNT(*) as count FROM ads "
+        "WHERE status IS NOT NULL GROUP BY status ORDER BY count DESC"
+    )
+    if len(df_status) > 0:
+        s1, s2, s3, s4 = st.columns(4)
+        for i, (_, row) in enumerate(df_status.iterrows()):
+            with [s1, s2, s3, s4][i % 4]:
+                st.metric(row["status"], row["count"])
+
+    st.markdown("#### Casova osa (nove inzeraty)")
+    df_timeline = run_query(
+        "SELECT first_seen as datum, COUNT(*) as count FROM ads "
+        "WHERE first_seen IS NOT NULL GROUP BY first_seen "
+        "ORDER BY first_seen DESC LIMIT 30"
+    )
+    if len(df_timeline) > 0:
+        st.line_chart(df_timeline.set_index("datum"))
+
+    st.markdown("#### Top 10 firem")
+    df_companies = run_query(
+        "SELECT company, COUNT(*) as count FROM ads "
+        "WHERE company IS NOT NULL AND company != '' "
+        "GROUP BY company ORDER BY count DESC LIMIT 10"
+    )
+    if len(df_companies) > 0:
+        st.dataframe(df_companies, use_container_width=True, hide_index=True)
