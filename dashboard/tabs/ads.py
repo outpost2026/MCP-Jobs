@@ -49,7 +49,17 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
 
     # Table
     if len(df_ads) > 0:
-        df_ads["desc_preview"] = df_ads["description"].fillna("").str[:80]
+        # Status badge coloring
+        _status_emoji = {
+            "new": "\U0001f535",
+            "seen": "\U0001f7e1",
+            "applied": "\U0001f7e2",
+            "rejected": "\U0001f534",
+        }
+        df_ads["status_badge"] = df_ads["status"].map(
+            lambda s: f"{_status_emoji.get(s, '')} {s}" if s else ""
+        )
+
         display_cols = [
             "id",
             "title",
@@ -57,10 +67,9 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
             "company",
             "location",
             "salary",
-            "status",
+            "status_badge",
             "completeness_label",
             "first_seen",
-            "desc_preview",
             "portal",
             "query_name",
         ]
@@ -71,14 +80,13 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
             column_config={
                 "id": st.column_config.NumberColumn("ID", width="small"),
                 "title": st.column_config.TextColumn("Nazev", width="large"),
-                "url": st.column_config.LinkColumn("Odkaz", display_text="link"),
+                "url": st.column_config.LinkColumn("Odkaz", display_text="\U0001f517"),
                 "company": st.column_config.TextColumn("Firma"),
                 "location": st.column_config.TextColumn("Lokace"),
                 "salary": st.column_config.TextColumn("Mzda"),
-                "status": st.column_config.TextColumn("Status"),
+                "status_badge": st.column_config.TextColumn("Status"),
                 "completeness_label": st.column_config.TextColumn("Data %"),
                 "first_seen": st.column_config.DateColumn("Prvni videni"),
-                "desc_preview": st.column_config.TextColumn("Popis"),
                 "portal": st.column_config.TextColumn("Portal"),
                 "query_name": st.column_config.TextColumn("Query"),
             },

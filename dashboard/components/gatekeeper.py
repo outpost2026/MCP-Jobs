@@ -6,39 +6,39 @@ import streamlit as st
 
 
 def render_gatekeeper(total_ads: int, last_run_status: str | None) -> None:
-    """Render pipeline health gatekeeper."""
+    """Render pipeline health gatekeeper — compact production style."""
     if last_run_status == "completed" and total_ads > 10:
         st.markdown(
-            """<div class="gatekeeper-ok"><h4 style="color: #10B981 !important; margin-top: 0;">
-            Pipeline OK</h4><p style="color: #94A3B8; font-size: 14px;">
-            Posledni beh uspesny, data aktualni.</p></div>""",
+            """<div class="gatekeeper-ok"><span style="font-size: 13px; font-weight: 600; color: #10B981;">
+            Pipeline OK</span> <span style="font-size: 12px; color: #64748B;">
+            — data aktualni</span></div>""",
             unsafe_allow_html=True,
         )
     elif last_run_status == "completed" and total_ads <= 10:
         st.markdown(
-            f"""<div class="gatekeeper-warn"><h4 style="color: #F59E0B !important; margin-top: 0;">
-            Pipeline OK, ale malo dat ({total_ads} inzeratu)</h4><p style="color: #94A3B8; font-size: 14px;">
-            Beh uspesny, ale vysledky chybi. Zkontroluj config.yaml nebo pridej query.</p></div>""",
+            f"""<div class="gatekeeper-warn"><span style="font-size: 13px; font-weight: 600; color: #F59E0B;">
+            Pipeline OK, malo dat ({total_ads})</span> <span style="font-size: 12px; color: #64748B;">
+            — zkontroluj config</span></div>""",
             unsafe_allow_html=True,
         )
     elif last_run_status == "failed":
         st.markdown(
-            """<div class="gatekeeper-critical"><h4 style="color: #F43F5E !important; margin-top: 0;">
-            Pipeline FAILED</h4><p style="color: #94A3B8; font-size: 14px;">
-            Posledni beh selhal. Zkontroluj logy.</p></div>""",
+            """<div class="gatekeeper-critical"><span style="font-size: 13px; font-weight: 600; color: #F43F5E;">
+            Pipeline FAILED</span> <span style="font-size: 12px; color: #64748B;">
+            — zkontroluj logy</span></div>""",
             unsafe_allow_html=True,
         )
     elif total_ads <= 10:
         st.markdown(
-            f"""<div class="gatekeeper-warn"><h4 style="color: #F59E0B !important; margin-top: 0;">
-            Malo dat ({total_ads} inzeratu)</h4><p style="color: #94A3B8; font-size: 14px;">
-            Spust ETL pipeline pro naplneni DB.</p></div>""",
+            f"""<div class="gatekeeper-warn"><span style="font-size: 13px; font-weight: 600; color: #F59E0B;">
+            Malo dat ({total_ads})</span> <span style="font-size: 12px; color: #64748B;">
+            — spust ETL</span></div>""",
             unsafe_allow_html=True,
         )
     else:
         st.markdown(
-            """<div class="gatekeeper-warn"><h4 style="color: #F59E0B !important; margin-top: 0;">
-            Zadny beh v historii</h4><p style="color: #94A3B8; font-size: 14px;">
-            Spust pipeline poprve.</p></div>""",
+            """<div class="gatekeeper-warn"><span style="font-size: 13px; font-weight: 600; color: #F59E0B;">
+            Zadny beh v historii</span> <span style="font-size: 12px; color: #64748B;">
+            — spust pipeline</span></div>""",
             unsafe_allow_html=True,
         )

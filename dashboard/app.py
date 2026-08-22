@@ -64,12 +64,12 @@ def main():
     st.markdown(f"<style>{_theme_css}</style>", unsafe_allow_html=True)
 
     st.markdown(
-        "<h1 style='text-align: center; margin-bottom: 5px;'>MCP-Jobs Dashboard</h1>",
+        "<h1 style='text-align: center; margin-bottom: 2px;'>MCP-Jobs</h1>",
         unsafe_allow_html=True,
     )
     st.markdown(
-        "<p style='text-align: center; color: #94A3B8; font-size: 16px; "
-        "margin-bottom: 10px;'>CZ job portal analytics | EROI-scored listings</p>",
+        "<p style='text-align: center; color: #64748B; font-size: 13px; "
+        "margin-bottom: 12px;'>CZ job portal analytics</p>",
         unsafe_allow_html=True,
     )
 
