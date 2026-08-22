@@ -2,7 +2,7 @@
 
 # MCP-Jobs
 
-MCP server pro tržní inteligenci nad českými pracovními portály — **6 providerů**, boolean matching, 3-vrstvý dedup, **PostgreSQL perzistence**, MCP rozhraní pro AI agenty. Nástupce legacy scrapers — **5.8× rychlejší**, config-driven, **189 unit testů**, hardening pro produkci.
+MCP server pro tržní inteligenci nad českými pracovními portály — **6 providerů**, boolean matching, 3-vrstvý dedup, **PostgreSQL perzistence**, MCP rozhraní pro AI agenty, **Streamlit dashboard**. Nástupce legacy scrapers — **5.8× rychlejší**, config-driven, **198 testů** (včetně contract tests), hardening pro produkci.
 - **ukázka produkčního výstupu**: automaticky generované html = [IT domain job search output](https://systeq.cz/projekty/MCP-jobs/etl_AI_NATIVE_20260820_115544.html)
 
 **Co to je:** autonomně vyvinutý, iterativně tvrzený systém — od scraping adapteru přes normalizaci, dedup a perzistenci až po AI-facing MCP protokol. Každá vrstva (HTTP → scraping → normalizace → matcher → dedup → persistence → MCP) je oddělena přes stabilní rozhraní, takže přidání nového portálu nevyžaduje přepis centrální pipeline.
@@ -30,6 +30,8 @@ MCP server pro tržní inteligenci nad českými pracovními portály — **6 pr
 - **SSRF hardening** — domain allowlist (SEC-001), regression testy na dangerous targets
 
 - **Structured logging** — per-card skip count, 0-ads alert, žádné silent failures
+
+- **Streamlit dashboard** — modulární frontend (`dashboard/`): shared filters, pure SQL metrics, status badges, bulk update, contract tests
 
 ## Architektura
 
@@ -59,6 +61,13 @@ data/
 ├── schema.sql         \# DDL pro PostgreSQL (ads, pipeline\_runs, UNIQUE url, fuzzy sloupce)  
 └── query\_store.json   \# Persistence query výstupů  
 output/                \# ETL výstupy etl\_\{PROFILE\}\_\{ts\}.\{json,md,html\}  
+dashboard/             \# Streamlit frontend (modulární balíček)  
+├── app.py             \# Auth, config, tab routing  
+├── filters.py         \# Shared sidebar filters + WHERE builder  
+├── metrics.py         \# Pure SQL analytics (10 functions, 0 Streamlit calls)  
+├── theme.css          \# Dark mode production theme  
+├── components/        \# KPI cards, gatekeeper, styling  
+└── tabs/              \# Inzeraty, Analyza, Historie behu  
 scripts/  
 ├── run\_etl.py           \# Základní ETL runner  
 ├── run\_etl\_metrics.py   \# ETL runner s per-provider timingem  
@@ -101,7 +110,7 @@ docker compose up -d
 copy .env.example .env   \# nastav DATABASE\_URL=postgres://mcpjobs:mcpjobs@localhost:5432/mcpjobs  
 \# nebo: scripts\\db.ps1 (restart, psql, logy)  
   
-\# Testy (189 testů; DB testy běží na mcpjobs\_test, jinak se skipnou)  
+\# Testy (198 testů; DB testy běží na mcpjobs\_test, jinak se skipnou + 9 contract tests)  
 pytest tests/ -v  
   
 \# ETL pipeline  
@@ -168,7 +177,7 @@ queries:
 | Per-provider bazos | ~80 s | **~12 s** | **6.7× faster** |
 | Per-provider jobs | ~40 s | **~8 s** | **5.0× faster** |
 | Per-provider pracecz | ~60 s | **~16 s** | **3.8× faster** |
-| Unit tests | 0 | **189** | — |
+| Unit tests | 0 | **198** (9 contract) | — |
 | Matching | AND-only, first-match-wins | **Boolean AST + LRU cache** | plná logika |
 | Diakritika | ruční mapping | **NFKD normalizace** | automatická |
 | Error handling | `except: continue` (silent) | **structured logging + skip count** | žádné silent failures |
@@ -254,18 +263,19 @@ Deep reasoning a audit artefakty jsou v `docs/`, README zůstává interface/ove
 
 - **Domain allowlist**: SEC-001 SSRF protection — 6 povolených domén (bazos.cz, jobs.cz, prace.cz, jenprace.cz, profesia.cz, volnamista.cz)
 
-## Vývojový stav (2026-08-20)
+## Vývojový stav (2026-08-22)
 
 | Oblast | Stav |
 | - | - |
 | Verze | 0.4.0 |
-| Testy | 189/189 PASS, ruff 0 |
+| Testy | 198/198 PASS (189 unit + 9 contract), ruff 0 |
 | Portály | 6/6 (jobs, pracecz, bazos, jenprace, profesia, volnamista) |
 | Dedup | 3-vrstvý (URL canonical → fuzzy in-memory → DB cross-portal) |
 | PostgreSQL | Fáze 1 done: schema, docker-compose, db.py, .env self-contained |
 | Anti-bot | Seznam.cz consent-page fix, end-of-list detekce |
 | MCP | L1-L3 (6 tools, resources, prompt), L4 plánováno |
-| CI | Test DB `mcpjobs\_test` krok v ci.yml |
+| Dashboard | Streamlit frontend: modulární balíček, shared filters, pure SQL metrics, bulk status, contract tests |
+| CI | Test DB `mcpjobs\_test` krok v ci.yml, pandas<3 pin |
 | Backlog | Engineering-proces Phase 09 (uv, ruff+mypy, GH Actions, pre-commit, coverage), produktový Phase 09 (FTS5, Dockerfile non-root, `\_\_main\_\_.py`+`--smoke`) |
 
 
