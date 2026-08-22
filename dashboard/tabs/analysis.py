@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+from dashboard.filters import HIGH_SIGNAL_QUERIES
 from dashboard.metrics import (
-    HIGH_SIGNAL_QUERIES,
     company_signal,
     cross_stack_companies,
     portal_effectiveness,
