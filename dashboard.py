@@ -542,37 +542,38 @@ with tab_analysis:
     else:
         st.info("Zadna data pro analyzu portalu.")
 
-    # ── Cross-Query Overlap ─────────────────────────────────────────────
+    # ── Cross-Portal Duplicates (true overlap signal) ────────────────────
     st.markdown("---")
     st.markdown(
-        "<p class='section-header'>Cross-Query Overlap (relevance signal)</p>",
+        "<p class='section-header'>Cross-Portal Overlap (same job on multiple portals)</p>",
         unsafe_allow_html=True,
     )
     df_overlap = run_query(
-        "SELECT url, title, company, "
+        "SELECT title, company, "
+        "ARRAY_AGG(DISTINCT portal) AS portals, "
         "ARRAY_AGG(DISTINCT query_name) AS matched_queries, "
-        "COUNT(DISTINCT query_name) AS query_count "
-        "FROM ads WHERE query_name IS NOT NULL "
-        "GROUP BY url, title, company "
-        "HAVING COUNT(DISTINCT query_name) > 1 "
-        "ORDER BY query_count DESC LIMIT 20"
+        "COUNT(DISTINCT portal) AS portal_count "
+        "FROM ads "
+        "GROUP BY title, company "
+        "HAVING COUNT(DISTINCT portal) > 1 "
+        "ORDER BY portal_count DESC LIMIT 20"
     )
     if len(df_overlap) > 0:
-        st.metric("Inzeratu matchujicich >1 query", len(df_overlap))
+        st.metric("Prazdnich inzeratu napric portaly", len(df_overlap))
         st.dataframe(
             df_overlap,
             use_container_width=True,
             hide_index=True,
             column_config={
-                "url": st.column_config.LinkColumn("URL", display_text="url"),
                 "title": st.column_config.TextColumn("Nazev"),
                 "company": st.column_config.TextColumn("Firma"),
+                "portals": st.column_config.TextColumn("Portaly"),
                 "matched_queries": st.column_config.TextColumn("Query"),
-                "query_count": st.column_config.NumberColumn("Pocet query"),
+                "portal_count": st.column_config.NumberColumn("Pocet portalu"),
             },
         )
     else:
-        st.info(" zadne inzeraty matchujici vice query (zatim).")
+        st.info("Zadne duplicity napric portaly.")
 
     # ── Salary Distribution ─────────────────────────────────────────────
     st.markdown("---")
