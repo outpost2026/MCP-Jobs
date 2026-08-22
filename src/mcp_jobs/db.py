@@ -1,4 +1,4 @@
-"""PostgreSQL persistence for the ETL pipeline (Faze 1 standalone pivot).
+"""PostgreSQL persistence for the ETL pipeline (Faze 2 — skill catalog).
 
 Provider-agnostic: connects via DATABASE_URL (Docker, Neon, Supabase, ...).
 Graceful degradation: if DB is unreachable, callers log a warning and
@@ -24,6 +24,45 @@ SCHEMA_PATH = _REPO_ROOT / "data" / "schema.sql"
 _db = None  # module-level cached connection (reuse across calls in one run)
 
 _ENV_PATH = _REPO_ROOT / ".env"
+
+
+def _extract_skills(ad: Ad) -> dict:
+    """Extract IT skills from ad description using SkillsCatalog.
+
+    Returns structured dict for JSONB storage, or empty dict on failure.
+    """
+    if not ad.description:
+        return {}
+    try:
+        from .skills_catalog import get_catalog
+
+        catalog = get_catalog()
+        ts = catalog.tech_score(ad.description)
+        domain_score, domain_detail = catalog.domain_score(ad.description)
+        employer_tier = catalog.employer_tier(ad.company or "")
+        loc_score, loc_detail = catalog.location_score(ad.description)
+
+        return {
+            "score": ts.score,
+            "coverage": ts.coverage,
+            "mentioned_weighted": ts.mentioned_weighted,
+            "matches": [
+                {
+                    "skill_id": m.skill_id,
+                    "display_name": m.display_name,
+                    "category": m.category,
+                    "weight": m.weight,
+                    "match_type": m.match_type,
+                }
+                for m in ts.matches
+            ],
+            "domain": {"score": domain_score, "detail": domain_detail},
+            "employer_tier": employer_tier,
+            "location": {"score": loc_score, "detail": loc_detail},
+        }
+    except Exception as e:
+        logger.debug("Skills extraction failed for %s: %s", ad.url, e)
+        return {}
 
 
 def _load_env(path: Path = _ENV_PATH) -> None:
@@ -176,18 +215,19 @@ def upsert_ads(conn: Any, ads: list[Ad], query_name: str, profile: str) -> int:
         fk = fuzzy_key(ad)
         ft, fc = fk if any(fk) else (None, None)
         fl = _fuzzy_norm(ad.location or "") or None
+        skills_data = _extract_skills(ad)
         cur = conn.execute(
             "INSERT INTO ads (url, title, company, location, salary, description, "
             "matched_keyword, portal, query_name, profile, "
-            "fuzzy_title, fuzzy_company, fuzzy_location) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+            "fuzzy_title, fuzzy_company, fuzzy_location, skills) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
             "ON CONFLICT (url) DO UPDATE SET "
             "last_seen=CURRENT_DATE, title=EXCLUDED.title, company=EXCLUDED.company, "
             "location=EXCLUDED.location, salary=EXCLUDED.salary, "
             "description=EXCLUDED.description, matched_keyword=EXCLUDED.matched_keyword, "
             "portal=EXCLUDED.portal, query_name=EXCLUDED.query_name, "
             "fuzzy_title=EXCLUDED.fuzzy_title, fuzzy_company=EXCLUDED.fuzzy_company, "
-            "fuzzy_location=EXCLUDED.fuzzy_location "
+            "fuzzy_location=EXCLUDED.fuzzy_location, skills=EXCLUDED.skills "
             "RETURNING (xmax = 0) AS inserted",
             (
                 ad.url,
@@ -203,6 +243,7 @@ def upsert_ads(conn: Any, ads: list[Ad], query_name: str, profile: str) -> int:
                 ft,
                 fc,
                 fl,
+                conn.jsonb(skills_data) if skills_data else None,
             ),
         )
         row = cur.fetchone()
