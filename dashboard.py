@@ -27,10 +27,21 @@ _REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 
 from dashboard.filters import (
+    HIGH_SIGNAL_QUERIES,
     build_where_clause,
     get_active_queries,
     init_filter_state,
     render_sidebar_filters,
+)
+from dashboard.metrics import (
+    company_signal,
+    cross_stack_companies,
+    portal_effectiveness,
+    portal_quality,
+    salary_by_domain,
+    stale_vs_fresh,
+    status_funnel,
+    velocity,
 )
 from mcp_jobs.db import connect, get_database_url, init_db
 
@@ -441,326 +452,81 @@ with tab_runs:
     else:
         st.info("Zadne behy v historii.")
 
-# ─── TAB: Analyza ─────────────────────────────────────────────────────────────
+
+# === TAB: Analyza ===
 with tab_analysis:
-    st.markdown("### Analyza trhu a datove kvality")
+    st.markdown("### Analyza trhu (high-signal kontext)")
 
-    # ── Portal Quality ──────────────────────────────────────────────────
+    # -- Velocity
     st.markdown("---")
-    st.markdown(
-        "<p class='section-header'>Portal Quality Score</p>",
-        unsafe_allow_html=True,
-    )
-    df_portal_quality = run_query(
-        "SELECT portal, "
-        "COUNT(*) AS total_ads, "
-        "COUNT(DISTINCT company) AS unique_companies, "
-        "ROUND(100.0 * COUNT(CASE WHEN salary IS NOT NULL AND salary != '' THEN 1 END) / NULLIF(COUNT(*), 0), 1) AS salary_pct, "
-        "ROUND(100.0 * COUNT(CASE WHEN description IS NOT NULL AND length(description) > 50 THEN 1 END) / NULLIF(COUNT(*), 0), 1) AS desc_pct, "
-        "ROUND((COUNT(CASE WHEN salary IS NOT NULL AND salary != '' THEN 1 END) + "
-        "COUNT(CASE WHEN description IS NOT NULL AND length(description) > 50 THEN 1 END)) "
-        "* 100.0 / (2 * NULLIF(COUNT(*), 0)), 1) AS quality_score "
-        "FROM ads GROUP BY portal ORDER BY quality_score DESC"
-    )
-    if len(df_portal_quality) > 0:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.dataframe(
-                df_portal_quality,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "portal": st.column_config.TextColumn("Portal"),
-                    "total_ads": st.column_config.NumberColumn("Inzeratu"),
-                    "unique_companies": st.column_config.NumberColumn("Firem"),
-                    "salary_pct": st.column_config.NumberColumn("Mzda %"),
-                    "desc_pct": st.column_config.NumberColumn("Popis %"),
-                    "quality_score": st.column_config.NumberColumn("Quality Score"),
-                },
-            )
-        with col2:
-            st.bar_chart(
-                df_portal_quality.set_index("portal")[["salary_pct", "desc_pct"]]
-            )
+    st.markdown("**Freshness / velocity (posledni N dni)**")
+    df_vel = velocity(conn, active_queries, days=st.session_state.filter_days)
+    if not df_vel.empty:
+        st.dataframe(df_vel, use_container_width=True, hide_index=True)
+        st.bar_chart(df_vel.groupby("day")["new_ads"].sum())
     else:
-        st.info("Zadna data pro analyzu portalu.")
+        st.info("Zadna data pro velocity.")
 
-    # ── Cross-Portal Duplicates (true overlap signal) ────────────────────
+    # -- Salary by domain
     st.markdown("---")
-    st.markdown(
-        "<p class='section-header'>Cross-Portal Overlap (same job on multiple portals)</p>",
-        unsafe_allow_html=True,
-    )
-    df_overlap = run_query(
-        "SELECT title, company, "
-        "ARRAY_AGG(DISTINCT portal) AS portals, "
-        "ARRAY_AGG(DISTINCT query_name) AS matched_queries, "
-        "COUNT(DISTINCT portal) AS portal_count "
-        "FROM ads "
-        "GROUP BY title, company "
-        "HAVING COUNT(DISTINCT portal) > 1 "
-        "ORDER BY portal_count DESC LIMIT 20"
-    )
-    if len(df_overlap) > 0:
-        st.metric("Prazdnich inzeratu napric portaly", len(df_overlap))
-        st.dataframe(
-            df_overlap,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "title": st.column_config.TextColumn("Nazev"),
-                "company": st.column_config.TextColumn("Firma"),
-                "portals": st.column_config.TextColumn("Portaly"),
-                "matched_queries": st.column_config.TextColumn("Query"),
-                "portal_count": st.column_config.NumberColumn("Pocet portalu"),
-            },
-        )
+    st.markdown("**Salary coverage & median podle query**")
+    df_sal = salary_by_domain(conn, active_queries)
+    if not df_sal.empty:
+        st.dataframe(df_sal, use_container_width=True, hide_index=True)
     else:
-        st.info("Zadne duplicity napric portaly.")
+        st.info("Zadna salary data.")
 
-    # ── Salary Distribution ─────────────────────────────────────────────
+    # -- Company signal
     st.markdown("---")
-    st.markdown(
-        "<p class='section-header'>Salary Analysis</p>",
-        unsafe_allow_html=True,
-    )
-    df_salary = run_query(
-        "WITH salary_parts AS ("
-        "  SELECT portal, query_name, salary,"
-        "    REGEXP_SPLIT_TO_ARRAY(salary, '[-\u2013]') AS parts"
-        "  FROM ads WHERE salary IS NOT NULL AND salary ~ '\\d'"
-        "), salary_parsed AS ("
-        "  SELECT portal, query_name, salary,"
-        "    REGEXP_REPLACE(parts[1], '[^0-9]', '', 'g') AS num1,"
-        "    CASE WHEN array_length(parts, 1) > 1"
-        "      THEN REGEXP_REPLACE(parts[2], '[^0-9]', '', 'g')"
-        "      ELSE '' END AS num2"
-        "  FROM salary_parts WHERE REGEXP_REPLACE(parts[1], '[^0-9]', '', 'g') != ''"
-        ")"
-        "SELECT portal, query_name,"
-        "  COUNT(*) AS ads_with_salary,"
-        "  ROUND(AVG(CASE WHEN num2 != '' THEN (CAST(num1 AS NUMERIC) + CAST(num2 AS NUMERIC)) / 2"
-        "                  ELSE CAST(num1 AS NUMERIC) END), 0) AS avg_salary,"
-        "  MIN(CAST(num1 AS NUMERIC)) AS min_salary,"
-        "  MAX(CASE WHEN num2 != '' THEN CAST(num2 AS NUMERIC) ELSE CAST(num1 AS NUMERIC) END) AS max_salary"
-        " FROM salary_parsed GROUP BY portal, query_name ORDER BY avg_salary DESC"
-    )
-    if len(df_salary) > 0:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.dataframe(
-                df_salary,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "portal": st.column_config.TextColumn("Portal"),
-                    "query_name": st.column_config.TextColumn("Query"),
-                    "ads_with_salary": st.column_config.NumberColumn("Pocet"),
-                    "avg_salary": st.column_config.NumberColumn("Avg Kc"),
-                    "min_salary": st.column_config.NumberColumn("Min Kc"),
-                    "max_salary": st.column_config.NumberColumn("Max Kc"),
-                },
-            )
-        with col2:
-            df_salary_chart = (
-                df_salary.groupby("portal")
-                .apply(
-                    lambda g: pd.Series(
-                        {
-                            "avg_salary": round(
-                                (g["avg_salary"] * g["ads_with_salary"]).sum()
-                                / g["ads_with_salary"].sum(),
-                                0,
-                            ),
-                            "ads": g["ads_with_salary"].sum(),
-                        }
-                    )
-                )
-                .reset_index()
-            )
-            st.bar_chart(df_salary_chart.set_index("portal")["avg_salary"])
+    st.markdown("**Company signal (opakovany / multi-query hiring)**")
+    df_co = company_signal(conn, active_queries)
+    if not df_co.empty:
+        st.dataframe(df_co, use_container_width=True, hide_index=True)
     else:
-        st.info("Zadna data o mzdach k analyze.")
+        st.info("Zadne company signals.")
 
-    # ── Freshness Analysis ──────────────────────────────────────────────
+    # -- Portal effectiveness
     st.markdown("---")
-    st.markdown(
-        "<p class='section-header'>Freshness (casova analyza)</p>",
-        unsafe_allow_html=True,
-    )
-    st.caption(
-        "Poznamka: 'Jen 1 den' znamena inzerat nalezen jen pri jednom behu pipeline. Zavisi na frekvenci behu."
-    )
-    df_freshness = run_query(
-        "SELECT first_seen, "
-        "COUNT(*) AS new_ads, "
-        "COUNT(CASE WHEN last_seen > first_seen THEN 1 END) AS still_live, "
-        "COUNT(CASE WHEN last_seen = first_seen THEN 1 END) AS one_day_only, "
-        "ROUND(100.0 * COUNT(CASE WHEN last_seen = first_seen THEN 1 END) / "
-        "NULLIF(COUNT(*), 0), 1) AS churn_pct "
-        "FROM ads WHERE first_seen IS NOT NULL "
-        "GROUP BY first_seen ORDER BY first_seen DESC"
-    )
-    if len(df_freshness) > 0:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.dataframe(
-                df_freshness.head(15),
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "first_seen": st.column_config.DateColumn("Datum"),
-                    "new_ads": st.column_config.NumberColumn("Novych"),
-                    "still_live": st.column_config.NumberColumn("Zije"),
-                    "one_day_only": st.column_config.NumberColumn("1 den"),
-                    "churn_pct": st.column_config.NumberColumn("Churn %"),
-                },
-            )
-        with col2:
-            df_freshness_chart = df_freshness.set_index("first_seen")[
-                ["new_ads", "still_live"]
-            ]
-            st.line_chart(df_freshness_chart)
+    st.markdown("**Portal effectiveness (signal %)**")
+    df_pe = portal_effectiveness(conn, HIGH_SIGNAL_QUERIES)
+    if not df_pe.empty:
+        st.dataframe(df_pe, use_container_width=True, hide_index=True)
     else:
-        st.info("Zadna data pro freshness analyzu.")
+        st.info("Zadna data pro portal effectiveness.")
 
-    # ── Status Funnel ───────────────────────────────────────────────────
+    # -- Status funnel
     st.markdown("---")
-    st.markdown(
-        "<p class='section-header'>Status Funnel</p>",
-        unsafe_allow_html=True,
-    )
-    df_funnel = run_query(
-        "SELECT COALESCE(status, '(bez statusu)') AS status, COUNT(*) AS count, "
-        "ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM ads), 1) AS pct "
-        "FROM ads GROUP BY status "
-        "ORDER BY CASE status "
-        "WHEN 'new' THEN 1 WHEN 'seen' THEN 2 "
-        "WHEN 'applied' THEN 3 WHEN 'rejected' THEN 4 ELSE 5 END"
-    )
-    if len(df_funnel) > 0:
-        cols = st.columns(len(df_funnel))
-        for i, (_, row) in enumerate(df_funnel.iterrows()):
-            with cols[i]:
-                st.metric(
-                    label=row["status"],
-                    value=row["count"],
-                    help=f"{row['pct']}% of all ads",
-                )
+    st.markdown("**Status funnel**")
+    df_funnel = status_funnel(conn, active_queries)
+    if not df_funnel.empty:
+        st.dataframe(df_funnel, use_container_width=True, hide_index=True)
     else:
         st.info("Zadne data pro funnel.")
 
-    # ── Query Efficiency ────────────────────────────────────────────────
+    # -- Stale vs fresh
     st.markdown("---")
-    st.markdown(
-        "<p class='section-header'>Query Efficiency (ktere dotazy jsou produktivni)</p>",
-        unsafe_allow_html=True,
-    )
-    df_query_eff = run_query(
-        "SELECT query_name,"
-        "  COUNT(*) AS total_ads,"
-        "  COUNT(DISTINCT portal) AS portals,"
-        "  COUNT(DISTINCT company) AS companies,"
-        "  ROUND(100.0 * COUNT(CASE WHEN salary IS NOT NULL AND salary != '' THEN 1 END) / COUNT(*), 1) AS salary_pct,"
-        "  ROUND(AVG(LENGTH(description)), 0) AS avg_desc_len"
-        " FROM ads WHERE query_name IS NOT NULL"
-        " GROUP BY query_name ORDER BY total_ads DESC"
-    )
-    if len(df_query_eff) > 0:
-        st.dataframe(
-            df_query_eff,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "query_name": st.column_config.TextColumn("Query"),
-                "total_ads": st.column_config.NumberColumn("Inzeratu"),
-                "portals": st.column_config.NumberColumn("Portalu"),
-                "companies": st.column_config.NumberColumn("Firem"),
-                "salary_pct": st.column_config.NumberColumn("Mzda %"),
-                "avg_desc_len": st.column_config.NumberColumn("Avg popis (znaky)"),
-            },
-        )
+    st.markdown("**Stale vs fresh**")
+    df_sf = stale_vs_fresh(conn, active_queries)
+    if not df_sf.empty:
+        st.dataframe(df_sf, use_container_width=True, hide_index=True)
     else:
-        st.info("Zadna data pro query effektivitu.")
+        st.info("Zadna data pro stale/fresh.")
 
-    # ── Location Analysis ───────────────────────────────────────────────
+    # -- Cross-stack companies
     st.markdown("---")
-    st.markdown(
-        "<p class='section-header'>Location Analysis (top lokace)</p>",
-        unsafe_allow_html=True,
-    )
-    df_locations = run_query(
-        "SELECT location, COUNT(*) AS ads,"
-        "  COUNT(DISTINCT company) AS companies,"
-        "  COUNT(DISTINCT portal) AS portals"
-        " FROM ads WHERE location IS NOT NULL AND location != ''"
-        " GROUP BY location ORDER BY ads DESC LIMIT 15"
-    )
-    if len(df_locations) > 0:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.dataframe(
-                df_locations,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "location": st.column_config.TextColumn("Lokace"),
-                    "ads": st.column_config.NumberColumn("Inzeratu"),
-                    "companies": st.column_config.NumberColumn("Firem"),
-                    "portals": st.column_config.NumberColumn("Portalu"),
-                },
-            )
-        with col2:
-            st.bar_chart(df_locations.set_index("location")["ads"])
+    st.markdown("**Cross-stack companies (>=2 domeny)**")
+    df_cs = cross_stack_companies(conn, active_queries)
+    if not df_cs.empty:
+        st.dataframe(df_cs, use_container_width=True, hide_index=True)
     else:
-        st.info("Zadna data o lokacich.")
+        st.info("Zadne cross-stack firmy.")
 
-    # ── Company Frequency ───────────────────────────────────────────────
+    # -- Portal quality (legacy)
     st.markdown("---")
-    st.markdown(
-        "<p class='section-header'>Company Frequency (top firmy)</p>",
-        unsafe_allow_html=True,
-    )
-    df_companies = run_query(
-        "SELECT company, COUNT(*) AS ads,"
-        "  ARRAY_AGG(DISTINCT portal) AS portals,"
-        "  ARRAY_AGG(DISTINCT query_name) AS queries"
-        " FROM ads WHERE company IS NOT NULL AND company != ''"
-        " GROUP BY company ORDER BY ads DESC LIMIT 15"
-    )
-    if len(df_companies) > 0:
-        st.dataframe(
-            df_companies,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "company": st.column_config.TextColumn("Firma"),
-                "ads": st.column_config.NumberColumn("Inzeratu"),
-                "portals": st.column_config.TextColumn("Portaly"),
-                "queries": st.column_config.TextColumn("Query"),
-            },
-        )
+    st.markdown("**Portal quality (legacy)**")
+    df_pq = portal_quality(conn)
+    if not df_pq.empty:
+        st.dataframe(df_pq, use_container_width=True, hide_index=True)
     else:
-        st.info("Zadna data o firmach.")
+        st.info("Zadna portal quality data.")
 
-    # ── Portal x Query Matrix ───────────────────────────────────────────
-    st.markdown("---")
-    st.markdown(
-        "<p class='section-header'>Portal x Query Matrix (kdo co pokryva)</p>",
-        unsafe_allow_html=True,
-    )
-    df_matrix = run_query(
-        "SELECT portal, query_name, COUNT(*) AS ads"
-        " FROM ads WHERE query_name IS NOT NULL"
-        " GROUP BY portal, query_name ORDER BY portal, ads DESC"
-    )
-    if len(df_matrix) > 0:
-        df_pivot = df_matrix.pivot_table(
-            index="portal", columns="query_name", values="ads", fill_value=0
-        )
-        st.dataframe(
-            df_pivot,
-            use_container_width=True,
-        )
-    else:
-        st.info("Zadna data pro matrix.")
