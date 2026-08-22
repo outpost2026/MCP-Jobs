@@ -121,8 +121,8 @@ def render_sidebar_filters(
 
     st.session_state.filter_status = st.sidebar.selectbox(
         "Status",
-        ["Vše", "new", "seen", "applied", "rejected"],
-        index=["Vše", "new", "seen", "applied", "rejected"].index(
+        ["Vše", "new", "seen", "hot", "applied", "rejected"],
+        index=["Vše", "new", "seen", "hot", "applied", "rejected"].index(
             st.session_state.filter_status
         ),
     )

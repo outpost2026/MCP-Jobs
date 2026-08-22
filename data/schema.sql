@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS ads (
     profile TEXT,
     first_seen DATE DEFAULT CURRENT_DATE,
     last_seen DATE DEFAULT CURRENT_DATE,
-    status TEXT DEFAULT 'new'            -- new / seen / applied / rejected
+    status TEXT DEFAULT 'new'            -- new / seen / hot / applied / rejected
 );
 
 -- Fuzzy dedup klic: normalizovany (title, company, location) klic pro

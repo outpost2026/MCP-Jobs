@@ -53,6 +53,7 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
         _status_emoji = {
             "new": "\U0001f535",
             "seen": "\U0001f7e1",
+            "hot": "\U0001f525",
             "applied": "\U0001f7e2",
             "rejected": "\U0001f534",
         }
@@ -157,7 +158,7 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
             b1, b2 = st.columns([3, 1])
             with b1:
                 bulk_status = st.selectbox(
-                    "Novy status", ["new", "seen", "applied", "rejected"]
+                    "Novy status", ["new", "seen", "hot", "applied", "rejected"]
                 )
             with b2:
                 st.write("")
@@ -181,7 +182,7 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
         with up_col2:
             new_status = st.selectbox(
                 "Novy status",
-                ["new", "seen", "applied", "rejected"],
+                ["new", "seen", "hot", "applied", "rejected"],
                 key="single_status",
             )
         with up_col3:

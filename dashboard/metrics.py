@@ -12,11 +12,13 @@ import pandas as pd
 
 # -- Low-level helper -----------------------------------------------------------
 
+
 def _read(conn, sql: str, params: tuple | list | None = None) -> pd.DataFrame:
     return pd.read_sql(sql, conn, params=params or ())
 
 
 # -- Core listing query ---------------------------------------------------------
+
 
 def fetch_ads(
     conn,
@@ -45,13 +47,17 @@ def fetch_ads(
     has_desc = df["description"].fillna("").str.len() > 50
     has_kw = df["matched_keyword"].notna()
     df["completeness"] = (
-        has_title.astype(int)
-        + has_company.astype(int)
-        + has_location.astype(int)
-        + has_salary.astype(int)
-        + has_desc.astype(int)
-        + has_kw.astype(int)
-    ) * 100 // 6
+        (
+            has_title.astype(int)
+            + has_company.astype(int)
+            + has_location.astype(int)
+            + has_salary.astype(int)
+            + has_desc.astype(int)
+            + has_kw.astype(int)
+        )
+        * 100
+        // 6
+    )
     df["completeness_label"] = df["completeness"].apply(lambda x: f"{x}%")
 
     if min_completeness > 0:
@@ -60,6 +66,7 @@ def fetch_ads(
 
 
 # -- High-SNR analytical queries ------------------------------------------------
+
 
 def velocity(
     conn,
@@ -191,9 +198,10 @@ def status_funnel(
         ORDER BY CASE status
             WHEN 'new' THEN 1
             WHEN 'seen' THEN 2
-            WHEN 'applied' THEN 3
-            WHEN 'rejected' THEN 4
-            ELSE 5
+            WHEN 'hot' THEN 3
+            WHEN 'applied' THEN 4
+            WHEN 'rejected' THEN 5
+            ELSE 6
         END
     """
     return _read(conn, sql, (queries, queries))
@@ -265,7 +273,9 @@ def portal_quality(conn) -> pd.DataFrame:
 
 
 def last_run_status(conn) -> str | None:
-    df = _read(conn, "SELECT status FROM pipeline_runs ORDER BY started_at DESC LIMIT 1")
+    df = _read(
+        conn, "SELECT status FROM pipeline_runs ORDER BY started_at DESC LIMIT 1"
+    )
     if df.empty:
         return None
     return df.iloc[0]["status"]
