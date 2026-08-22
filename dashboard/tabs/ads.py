@@ -9,6 +9,7 @@ import streamlit as st
 
 from dashboard.components.gatekeeper import render_gatekeeper
 from dashboard.components.kpi import render_kpi
+from dashboard.components.styling import completeness_color
 
 
 def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
@@ -45,25 +46,6 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
     # Table
     if len(df_ads) > 0:
         df_ads["desc_preview"] = df_ads["description"].fillna("").str[:80]
-        has_title = df_ads["title"].notna()
-        has_company = df_ads["company"].notna() & (df_ads["company"] != "")
-        has_location = df_ads["location"].notna() & (df_ads["location"] != "")
-        has_salary = df_ads["salary"].notna() & (df_ads["salary"] != "")
-        has_desc = df_ads["description"].fillna("").str.len() > 50
-        has_keyword = df_ads["matched_keyword"].notna()
-        df_ads["completeness"] = (
-            (
-                has_title.astype(int)
-                + has_company.astype(int)
-                + has_location.astype(int)
-                + has_salary.astype(int)
-                + has_desc.astype(int)
-                + has_keyword.astype(int)
-            )
-            * 100
-            // 6
-        )
-        df_ads["completeness_label"] = df_ads["completeness"].apply(lambda x: f"{x}%")
         display_cols = [
             "id",
             "title",
@@ -78,25 +60,10 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
             "portal",
             "query_name",
         ]
-        st.dataframe(
-            df_ads[display_cols],
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "id": st.column_config.NumberColumn("ID", width="small"),
-                "title": st.column_config.TextColumn("Nazev", width="large"),
-                "url": st.column_config.LinkColumn("Odkaz", display_text="url"),
-                "company": st.column_config.TextColumn("Firma"),
-                "location": st.column_config.TextColumn("Lokace"),
-                "salary": st.column_config.TextColumn("Mzda"),
-                "status": st.column_config.TextColumn("Status"),
-                "completeness_label": st.column_config.TextColumn("Data %"),
-                "first_seen": st.column_config.DateColumn("Prvni videni"),
-                "desc_preview": st.column_config.TextColumn("Popis"),
-                "portal": st.column_config.TextColumn("Portal"),
-                "query_name": st.column_config.TextColumn("Query"),
-            },
+        styled = df_ads[display_cols].style.map(
+            completeness_color, subset=["completeness_label"]
         )
+        st.write(styled, use_container_width=True)
     else:
         st.info("Zadne inzeraty pro vybrane filtry.")
 
