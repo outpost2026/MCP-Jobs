@@ -54,7 +54,6 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
         display_cols = [
             "id",
             "title",
-            "url",
             "company",
             "location",
             "salary",
@@ -65,6 +64,12 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
             "portal",
             "query_name",
         ]
+        # Replace full URL with short domain label to reduce noise
+        if "url" in df_ads.columns:
+            df_ads["url_short"] = df_ads["url"].apply(
+                lambda u: u.split("//")[-1].split("/")[0] if isinstance(u, str) else "-"
+            )
+            display_cols.insert(2, "url_short")
         styled = df_ads[display_cols].style.map(
             completeness_color, subset=["completeness_label"]
         )
