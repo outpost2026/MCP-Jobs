@@ -28,6 +28,15 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
     last_status = st.session_state.last_run_status
     render_gatekeeper(len(df_ads), last_status)
 
+    # New since last visit badge
+    last_visit = st.session_state.get("last_visit")
+    if last_visit and len(df_ads) > 0:
+        new_since = df_ads[df_ads["first_seen"] > last_visit]
+        if len(new_since) > 0:
+            st.info(
+                f"🆕 {len(new_since)} nových inzerátů od poslední návštěvy ({last_visit})"
+            )
+
     # KPI
     render_kpi(df_ads)
 
@@ -56,9 +65,18 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
         )
         df_ads["completeness_label"] = df_ads["completeness"].apply(lambda x: f"{x}%")
         display_cols = [
-            "id", "title", "url", "company", "location", "salary",
-            "status", "completeness_label", "first_seen", "desc_preview",
-            "portal", "query_name",
+            "id",
+            "title",
+            "url",
+            "company",
+            "location",
+            "salary",
+            "status",
+            "completeness_label",
+            "first_seen",
+            "desc_preview",
+            "portal",
+            "query_name",
         ]
         st.dataframe(
             df_ads[display_cols],
@@ -127,18 +145,50 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
             else:
                 st.warning(f"Inzerat s ID {detail_id} nebyl nalezen.")
 
-    # Status update
+    # Bulk status update
     if len(df_ads) > 0:
         st.markdown("---")
         st.markdown(
-            "<p class='section-header'>Zmena statusu</p>", unsafe_allow_html=True
+            "<p class='section-header'>Zmena statusu (bulk)</p>", unsafe_allow_html=True
         )
+        # Multi-select checkboxes
+        selected_ids = st.multiselect(
+            "Vyber inzeraty pro hromadnou zmenu",
+            options=df_ads["id"].tolist(),
+            format_func=lambda x: (
+                f"#{x} - {df_ads[df_ads['id'] == x]['title'].values[0] if len(df_ads[df_ads['id'] == x]) > 0 else x}"
+            ),
+        )
+        if selected_ids:
+            b1, b2 = st.columns([3, 1])
+            with b1:
+                bulk_status = st.selectbox(
+                    "Novy status", ["new", "seen", "applied", "rejected"]
+                )
+            with b2:
+                st.write("")
+                st.write("")
+                if st.button(f"Aktualizovat {len(selected_ids)} inzeratu"):
+                    placeholders = ",".join(["%s"] * len(selected_ids))
+                    conn.execute(
+                        f"UPDATE ads SET status = %s WHERE id IN ({placeholders})",
+                        [bulk_status, *selected_ids],
+                    )
+                    st.cache_data.clear()
+                    st.success(f"{len(selected_ids)} inzeratu -> {bulk_status}")
+                    st.session_state.pop("last_run_status", None)
+                    st.rerun()
+
+        # Single status update
+        st.markdown("**Nebo jednotlively:**")
         up_col1, up_col2, up_col3 = st.columns([2, 2, 1])
         with up_col1:
             update_id = st.number_input("ID inzeratu", min_value=1, step=1)
         with up_col2:
             new_status = st.selectbox(
-                "Novy status", ["new", "seen", "applied", "rejected"]
+                "Novy status",
+                ["new", "seen", "applied", "rejected"],
+                key="single_status",
             )
         with up_col3:
             st.write("")

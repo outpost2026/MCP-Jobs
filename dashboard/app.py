@@ -118,6 +118,11 @@ def main():
     with tab_runs:
         render_runs_tab(run_query)
 
+    # Update last_visit for next session (new since last visit badge)
+    from datetime import UTC, datetime
+
+    st.session_state.last_visit = datetime.now(tz=UTC).date()
+
 
 if __name__ == "__main__":
     main()
