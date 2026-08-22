@@ -10,13 +10,18 @@ import streamlit as st
 from dashboard.components.gatekeeper import render_gatekeeper
 from dashboard.components.kpi import render_kpi
 from dashboard.components.styling import completeness_color
+from dashboard.metrics import fetch_ads
 
 
 def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
     """Render the Inzeraty tab."""
-    # Shared filters from sidebar (filters.py)
-    sql = f"SELECT * FROM ads WHERE {where_sql} ORDER BY first_seen DESC, title"
-    df_ads = run_query(sql, tuple(where_params))
+    # Use metrics.fetch_ads for completeness computation
+    df_ads = fetch_ads(
+        conn,
+        where_sql=where_sql,
+        params=where_params,
+        min_completeness=st.session_state.get("filter_min_completeness", 0),
+    )
 
     # Gatekeeper (cached -- only re-queries after status update)
     if "last_run_status" not in st.session_state:
