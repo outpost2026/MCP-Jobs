@@ -136,6 +136,32 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
                     padding:12px;resize:vertical;" disabled>{_html.escape(str(r["description"] or "Zadny popis."))}</textarea></div>""",
                     unsafe_allow_html=True,
                 )
+                # Skills section
+                import json as _json
+
+                skills_raw = r.get("skills")
+                if skills_raw and skills_raw != "[]" and skills_raw is not None:
+                    if isinstance(skills_raw, str):
+                        skills = _json.loads(skills_raw)
+                    elif isinstance(skills_raw, dict):
+                        skills = skills_raw
+                    else:
+                        skills = None
+                    if skills and skills.get("matches"):
+                        st.markdown("**IT Stack:**")
+                        tags_html = " ".join(
+                            f'<span style="background:#1e40af;color:#fff;'
+                            f"padding:2px 8px;border-radius:4px;font-size:12px;"
+                            f'margin:2px;">{m["skill_id"]}</span>'
+                            for m in skills["matches"][:12]
+                        )
+                        st.markdown(tags_html, unsafe_allow_html=True)
+                        c1, c2, c3, c4 = st.columns(4)
+                        c1.metric("Tech Score", f"{skills.get('score', 0):.1f}")
+                        c2.metric("Coverage", f"{skills.get('coverage', 0):.1%}")
+                        domain = skills.get("domain", {})
+                        c3.metric("Domain Score", f"{domain.get('score', 0):.0f}")
+                        c4.metric("Employer Tier", skills.get("employer_tier", "-"))
                 st.markdown(f"[Otevrit na portale]({r['url']})")
             else:
                 st.warning(f"Inzerat s ID {detail_id} nebyl nalezen.")

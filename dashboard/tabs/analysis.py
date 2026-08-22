@@ -13,6 +13,8 @@ from dashboard.metrics import (
     salary_by_domain,
     stale_vs_fresh,
     status_funnel,
+    tech_score_distribution,
+    top_skills,
     velocity,
 )
 
@@ -20,6 +22,26 @@ from dashboard.metrics import (
 def render_analysis_tab(conn, active_queries) -> None:
     """Render the Analyza tab."""
     st.markdown("### Analyza trhu (high-signal kontext)")
+
+    # -- Skills distribution (top skills)
+    st.markdown("---")
+    st.markdown("**IT Skills Distribution**")
+    df_skills = top_skills(conn, limit=15)
+    if not df_skills.empty:
+        st.dataframe(df_skills, use_container_width=True, hide_index=True)
+        st.bar_chart(df_skills.set_index("skill")["cnt"])
+    else:
+        st.info("Zadne skills data. Spust backfill_skills.py.")
+
+    # -- Tech score distribution
+    st.markdown("---")
+    st.markdown("**Tech Score Distribution**")
+    df_dist = tech_score_distribution(conn)
+    if not df_dist.empty:
+        st.dataframe(df_dist, use_container_width=True, hide_index=True)
+        st.bar_chart(df_dist.set_index("bucket")["cnt"])
+    else:
+        st.info("Zadna tech score data.")
 
     # -- Velocity
     st.markdown("---")

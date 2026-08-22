@@ -100,6 +100,15 @@ def main():
         "SELECT DISTINCT query_name FROM ads WHERE query_name IS NOT NULL ORDER BY query_name"
     )["query_name"].tolist()
 
+    # Load available skills for multiselect filter
+    _skills_df = run_query(
+        "SELECT DISTINCT m->>'skill_id' AS skill "
+        "FROM ads, jsonb_array_elements(skills->'matches') AS m "
+        "WHERE skills IS NOT NULL AND skills != '[]'::jsonb "
+        "ORDER BY skill"
+    )
+    st.session_state.available_skills = _skills_df["skill"].tolist()
+
     render_sidebar_filters(_portals, _queries)
 
     # Shared WHERE for all tabs

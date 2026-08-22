@@ -279,3 +279,90 @@ def last_run_status(conn) -> str | None:
     if df.empty:
         return None
     return df.iloc[0]["status"]
+
+
+# -- Skills catalog queries ---------------------------------------------------
+
+
+def fetch_ads_with_skills(
+    conn,
+    where_sql: str = "1=1",
+    params: Sequence = (),
+) -> pd.DataFrame:
+    """Ads with skills JSONB extracted into flat columns."""
+    sql = f"""
+        SELECT
+            id, title, url, company, location, salary, status,
+            first_seen, portal, query_name,
+            skills,
+            (skills->>'score')::float AS tech_score,
+            (skills->>'coverage')::float AS coverage,
+            skills->'domain'->>'score' AS domain_score,
+            skills->>'employer_tier' AS employer_tier
+        FROM ads
+        WHERE {where_sql}
+          AND skills IS NOT NULL AND skills != '[]'::jsonb
+        ORDER BY (skills->>'score')::float DESC NULLS LAST
+    """
+    return _read(conn, sql, list(params))
+
+
+def top_skills(conn, limit: int = 15) -> pd.DataFrame:
+    """Most detected skills across all ads."""
+    sql = """
+        SELECT
+            m->>'skill_id' AS skill,
+            m->>'category' AS category,
+            m->>'match_type' AS match_type,
+            COUNT(*) AS cnt,
+            ROUND(AVG((m->>'weight')::numeric), 2) AS avg_weight
+        FROM ads,
+             jsonb_array_elements(skills->'matches') AS m
+        WHERE skills IS NOT NULL AND skills != '[]'::jsonb
+        GROUP BY m->>'skill_id', m->>'category', m->>'match_type'
+        ORDER BY cnt DESC
+        LIMIT %s
+    """
+    return _read(conn, sql, (limit,))
+
+
+def tech_score_distribution(conn) -> pd.DataFrame:
+    """Tech score histogram buckets."""
+    sql = """
+        SELECT
+            CASE
+                WHEN (skills->>'score')::float < 10 THEN '0-10'
+                WHEN (skills->>'score')::float < 20 THEN '10-20'
+                WHEN (skills->>'score')::float < 30 THEN '20-30'
+                WHEN (skills->>'score')::float < 40 THEN '30-40'
+                WHEN (skills->>'score')::float < 50 THEN '40-50'
+                WHEN (skills->>'score')::float < 60 THEN '50-60'
+                WHEN (skills->>'score')::float < 70 THEN '60-70'
+                WHEN (skills->>'score')::float < 80 THEN '70-80'
+                WHEN (skills->>'score')::float < 90 THEN '80-90'
+                ELSE '90-100'
+            END AS bucket,
+            COUNT(*) AS cnt
+        FROM ads
+        WHERE skills IS NOT NULL AND skills != '[]'::jsonb
+        GROUP BY bucket
+        ORDER BY MIN((skills->>'score')::float)
+    """
+    return _read(conn, sql)
+
+
+def skills_by_domain(conn) -> pd.DataFrame:
+    """Top skills grouped by query_name domain."""
+    sql = """
+        SELECT
+            query_name,
+            m->>'skill_id' AS skill,
+            COUNT(*) AS cnt
+        FROM ads,
+             jsonb_array_elements(skills->'matches') AS m
+        WHERE skills IS NOT NULL AND skills != '[]'::jsonb
+        GROUP BY query_name, m->>'skill_id'
+        HAVING COUNT(*) >= 2
+        ORDER BY query_name, cnt DESC
+    """
+    return _read(conn, sql)
