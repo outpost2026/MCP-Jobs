@@ -3,6 +3,7 @@
 # MCP-Jobs
 
 MCP server pro tržní inteligenci nad českými pracovními portály — **6 providerů**, boolean matching, 3-vrstvý dedup, **PostgreSQL perzistence**, MCP rozhraní pro AI agenty. Nástupce legacy scrapers — **5.8× rychlejší**, config-driven, **189 unit testů**, hardening pro produkci.
+- **ukázka produkčního výstupu**: automaticky generované html = [IT domain job search output](https://systeq.cz/projekty/MCP-jobs/etl_AI_NATIVE_20260820_115544.html)
 
 **Co to je:** autonomně vyvinutý, iterativně tvrzený systém — od scraping adapteru přes normalizaci, dedup a perzistenci až po AI-facing MCP protokol. Každá vrstva (HTTP → scraping → normalizace → matcher → dedup → persistence → MCP) je oddělena přes stabilní rozhraní, takže přidání nového portálu nevyžaduje přepis centrální pipeline.
 
