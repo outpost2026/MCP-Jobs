@@ -139,8 +139,11 @@ def render_kpi(df: pd.DataFrame) -> None:
     companies = df["company"].nunique()
     new_today = len(df[df["first_seen"] == datetime.now(tz=UTC).date()])
     with_salary = df["salary"].notna().sum()
+    with_desc = (df["description"].fillna("").str.len() > 50).sum()
+    salary_pct = round(100 * with_salary / total, 1) if total > 0 else 0
+    desc_pct = round(100 * with_desc / total, 1) if total > 0 else 0
 
-    k1, k2, k3, k4, k5 = st.columns(5)
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
     with k1:
         st.markdown(
             f"""<div class="metric-card"><div class="metric-label">Celkem inzeratu</div>
@@ -168,7 +171,15 @@ def render_kpi(df: pd.DataFrame) -> None:
     with k5:
         st.markdown(
             f"""<div class="metric-card"><div class="metric-label">Se mzdou</div>
-            <div class="metric-value">{with_salary}</div></div>""",
+            <div class="metric-value">{with_salary}</div>
+            <div class="metric-label">{salary_pct}% coverage</div></div>""",
+            unsafe_allow_html=True,
+        )
+    with k6:
+        st.markdown(
+            f"""<div class="metric-card"><div class="metric-label">S popisem</div>
+            <div class="metric-value">{with_desc}</div>
+            <div class="metric-label">{desc_pct}% coverage</div></div>""",
             unsafe_allow_html=True,
         )
 
@@ -207,7 +218,7 @@ def render_gatekeeper(total_ads: int, last_run_status: str | None) -> None:
 
 
 # ─── Tabs ─────────────────────────────────────────────────────────────────────
-tab_ads, tab_runs, tab_stats = st.tabs(["Inzeraty", "Historie behu", "Statistiky"])
+tab_ads, tab_analysis, tab_runs = st.tabs(["Inzeraty", "Analyza", "Historie behu"])
 
 # ─── TAB: Inzeraty ────────────────────────────────────────────────────────────
 with tab_ads:
@@ -265,18 +276,45 @@ with tab_ads:
     # Table
     if len(df_ads) > 0:
         df_ads["desc_preview"] = df_ads["description"].fillna("").str[:80]
+        df_ads["completeness"] = df_ads.apply(
+            lambda r: round(
+                sum(
+                    [
+                        1 if pd.notna(r.get("title")) else 0,
+                        1
+                        if pd.notna(r.get("company")) and r.get("company") != ""
+                        else 0,
+                        1
+                        if pd.notna(r.get("location")) and r.get("location") != ""
+                        else 0,
+                        1 if pd.notna(r.get("salary")) and r.get("salary") != "" else 0,
+                        1
+                        if pd.notna(r.get("description"))
+                        and len(str(r.get("description", ""))) > 50
+                        else 0,
+                        1 if pd.notna(r.get("matched_keyword")) else 0,
+                    ]
+                )
+                * 100
+                / 6,
+                0,
+            ),
+            axis=1,
+        )
+        df_ads["completeness_label"] = df_ads["completeness"].apply(lambda x: f"{x}%")
         display_cols = [
             "id",
             "title",
             "url",
             "company",
+            "location",
+            "salary",
             "status",
+            "completeness_label",
             "first_seen",
             "desc_preview",
             "portal",
-            "salary",
             "query_name",
-            "location",
         ]
         st.dataframe(
             df_ads[display_cols],
@@ -285,15 +323,16 @@ with tab_ads:
             column_config={
                 "id": st.column_config.NumberColumn("ID", width="small"),
                 "title": st.column_config.TextColumn("Nazev", width="large"),
+                "url": st.column_config.LinkColumn("Odkaz", display_text="url"),
                 "company": st.column_config.TextColumn("Firma"),
+                "location": st.column_config.TextColumn("Lokace"),
+                "salary": st.column_config.TextColumn("Mzda"),
                 "status": st.column_config.TextColumn("Status"),
+                "completeness_label": st.column_config.TextColumn("Data %"),
                 "first_seen": st.column_config.DateColumn("Prvni videni"),
                 "desc_preview": st.column_config.TextColumn("Popis"),
                 "portal": st.column_config.TextColumn("Portal"),
-                "salary": st.column_config.TextColumn("Mzda"),
                 "query_name": st.column_config.TextColumn("Query"),
-                "location": st.column_config.TextColumn("Lokace"),
-                "url": st.column_config.LinkColumn("Odkaz", display_text="url"),
             },
         )
     else:
@@ -453,55 +492,185 @@ with tab_runs:
     else:
         st.info("Zadne behy v historii.")
 
-# ─── TAB: Statistiky ──────────────────────────────────────────────────────────
-with tab_stats:
-    st.markdown("### Prehledove statistiky")
+# ─── TAB: Analyza ─────────────────────────────────────────────────────────────
+with tab_analysis:
+    st.markdown("### Analyza trhu a datove kvality")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("#### Distribuce podle portalu")
-        df_portal = run_query(
-            "SELECT portal, COUNT(*) as count FROM ads "
-            "WHERE portal IS NOT NULL GROUP BY portal ORDER BY count DESC"
+    # ── Portal Quality ──────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown(
+        "<p class='section-header'>Portal Quality Score</p>",
+        unsafe_allow_html=True,
+    )
+    df_portal_quality = run_query(
+        "SELECT portal, "
+        "COUNT(*) AS total_ads, "
+        "COUNT(DISTINCT company) AS unique_companies, "
+        "ROUND(100.0 * COUNT(CASE WHEN salary IS NOT NULL AND salary != '' THEN 1 END) / NULLIF(COUNT(*), 0), 1) AS salary_pct, "
+        "ROUND(100.0 * COUNT(CASE WHEN description IS NOT NULL AND length(description) > 50 THEN 1 END) / NULLIF(COUNT(*), 0), 1) AS desc_pct, "
+        "ROUND((COUNT(CASE WHEN salary IS NOT NULL AND salary != '' THEN 1 END) + "
+        "COUNT(CASE WHEN description IS NOT NULL AND length(description) > 50 THEN 1 END)) "
+        "* 100.0 / (2 * NULLIF(COUNT(*), 0)), 1) AS quality_score "
+        "FROM ads GROUP BY portal ORDER BY quality_score DESC"
+    )
+    if len(df_portal_quality) > 0:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.dataframe(
+                df_portal_quality,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "portal": st.column_config.TextColumn("Portal"),
+                    "total_ads": st.column_config.NumberColumn("Inzeratu"),
+                    "unique_companies": st.column_config.NumberColumn("Firem"),
+                    "salary_pct": st.column_config.NumberColumn("Mzda %"),
+                    "desc_pct": st.column_config.NumberColumn("Popis %"),
+                    "quality_score": st.column_config.NumberColumn("Quality Score"),
+                },
+            )
+        with col2:
+            st.bar_chart(
+                df_portal_quality.set_index("portal")[["salary_pct", "desc_pct"]]
+            )
+    else:
+        st.info("Zadna data pro analyzu portalu.")
+
+    # ── Cross-Query Overlap ─────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown(
+        "<p class='section-header'>Cross-Query Overlap (relevance signal)</p>",
+        unsafe_allow_html=True,
+    )
+    df_overlap = run_query(
+        "SELECT url, title, company, "
+        "ARRAY_AGG(DISTINCT query_name) AS matched_queries, "
+        "COUNT(DISTINCT query_name) AS query_count "
+        "FROM ads WHERE query_name IS NOT NULL "
+        "GROUP BY url, title, company "
+        "HAVING COUNT(DISTINCT query_name) > 1 "
+        "ORDER BY query_count DESC LIMIT 20"
+    )
+    if len(df_overlap) > 0:
+        st.metric("Inzeratu matchujicich >1 query", len(df_overlap))
+        st.dataframe(
+            df_overlap,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "url": st.column_config.LinkColumn("URL", display_text="url"),
+                "title": st.column_config.TextColumn("Nazev"),
+                "company": st.column_config.TextColumn("Firma"),
+                "matched_queries": st.column_config.TextColumn("Query"),
+                "query_count": st.column_config.NumberColumn("Pocet query"),
+            },
         )
-        if len(df_portal) > 0:
-            st.bar_chart(df_portal.set_index("portal"))
+    else:
+        st.info(" zadne inzeraty matchujici vice query (zatim).")
 
-    with col2:
-        st.markdown("#### Top dotazy (queries)")
-        df_queries = run_query(
-            "SELECT query_name, COUNT(*) as count FROM ads "
-            "WHERE query_name IS NOT NULL GROUP BY query_name "
-            "ORDER BY count DESC LIMIT 10"
-        )
-        if len(df_queries) > 0:
-            st.bar_chart(df_queries.set_index("query_name"))
-
-    st.markdown("#### Distribuce podle statusu")
-    df_status = run_query(
-        "SELECT status, COUNT(*) as count FROM ads "
-        "WHERE status IS NOT NULL GROUP BY status ORDER BY count DESC"
+    # ── Salary Distribution ─────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown(
+        "<p class='section-header'>Salary Analysis</p>",
+        unsafe_allow_html=True,
     )
-    if len(df_status) > 0:
-        s1, s2, s3, s4 = st.columns(4)
-        for i, (_, row) in enumerate(df_status.iterrows()):
-            with [s1, s2, s3, s4][i % 4]:
-                st.metric(row["status"], row["count"])
-
-    st.markdown("#### Casova osa (nove inzeraty)")
-    df_timeline = run_query(
-        "SELECT first_seen as datum, COUNT(*) as count FROM ads "
-        "WHERE first_seen IS NOT NULL GROUP BY first_seen "
-        "ORDER BY first_seen DESC LIMIT 30"
+    df_salary = run_query(
+        "SELECT portal, query_name, "
+        "COUNT(*) AS ads_with_salary, "
+        "ROUND(AVG(CAST(REGEXP_REPLACE(SUBSTRING(salary FROM '(\\d[\\d\\s]*)'), "
+        "'\\s', '', 'g') AS NUMERIC)), 0) AS avg_salary, "
+        "MIN(CAST(REGEXP_REPLACE(SUBSTRING(salary FROM '(\\d[\\d\\s]*)'), "
+        "'\\s', '', 'g') AS NUMERIC)) AS min_salary, "
+        "MAX(CAST(REGEXP_REPLACE(SUBSTRING(salary FROM '(\\d[\\d\\s]*)'), "
+        "'\\s', '', 'g') AS NUMERIC)) AS max_salary "
+        "FROM ads WHERE salary IS NOT NULL AND salary ~ '\\d' "
+        "GROUP BY portal, query_name ORDER BY avg_salary DESC"
     )
-    if len(df_timeline) > 0:
-        st.line_chart(df_timeline.set_index("datum"))
+    if len(df_salary) > 0:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.dataframe(
+                df_salary,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "portal": st.column_config.TextColumn("Portal"),
+                    "query_name": st.column_config.TextColumn("Query"),
+                    "ads_with_salary": st.column_config.NumberColumn("Pocet"),
+                    "avg_salary": st.column_config.NumberColumn("Avg Kc"),
+                    "min_salary": st.column_config.NumberColumn("Min Kc"),
+                    "max_salary": st.column_config.NumberColumn("Max Kc"),
+                },
+            )
+        with col2:
+            df_salary_chart = (
+                df_salary.groupby("portal")["avg_salary"].mean().reset_index()
+            )
+            st.bar_chart(df_salary_chart.set_index("portal"))
+    else:
+        st.info("Zadna data o mzdach k analyze.")
 
-    st.markdown("#### Top 10 firem")
-    df_companies = run_query(
-        "SELECT company, COUNT(*) as count FROM ads "
-        "WHERE company IS NOT NULL AND company != '' "
-        "GROUP BY company ORDER BY count DESC LIMIT 10"
+    # ── Freshness Analysis ──────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown(
+        "<p class='section-header'>Freshness (casova analyza)</p>",
+        unsafe_allow_html=True,
     )
-    if len(df_companies) > 0:
-        st.dataframe(df_companies, use_container_width=True, hide_index=True)
+    df_freshness = run_query(
+        "SELECT first_seen, "
+        "COUNT(*) AS new_ads, "
+        "COUNT(CASE WHEN last_seen > first_seen THEN 1 END) AS still_live, "
+        "COUNT(CASE WHEN last_seen = first_seen THEN 1 END) AS one_day_only, "
+        "ROUND(100.0 * COUNT(CASE WHEN last_seen = first_seen THEN 1 END) / "
+        "NULLIF(COUNT(*), 0), 1) AS churn_pct "
+        "FROM ads WHERE first_seen IS NOT NULL "
+        "GROUP BY first_seen ORDER BY first_seen DESC"
+    )
+    if len(df_freshness) > 0:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.dataframe(
+                df_freshness.head(15),
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "first_seen": st.column_config.DateColumn("Datum"),
+                    "new_ads": st.column_config.NumberColumn("Novych"),
+                    "still_live": st.column_config.NumberColumn("Zije"),
+                    "one_day_only": st.column_config.NumberColumn("1 den"),
+                    "churn_pct": st.column_config.NumberColumn("Churn %"),
+                },
+            )
+        with col2:
+            df_freshness_chart = df_freshness.set_index("first_seen")[
+                ["new_ads", "still_live"]
+            ]
+            st.line_chart(df_freshness_chart)
+    else:
+        st.info("Zadna data pro freshness analyzu.")
+
+    # ── Status Funnel ───────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown(
+        "<p class='section-header'>Status Funnel</p>",
+        unsafe_allow_html=True,
+    )
+    df_funnel = run_query(
+        "SELECT status, COUNT(*) AS count, "
+        "ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM ads), 1) AS pct "
+        "FROM ads WHERE status IS NOT NULL GROUP BY status "
+        "ORDER BY CASE status "
+        "WHEN 'new' THEN 1 WHEN 'seen' THEN 2 "
+        "WHEN 'applied' THEN 3 WHEN 'rejected' THEN 4 END"
+    )
+    if len(df_funnel) > 0:
+        cols = st.columns(len(df_funnel))
+        for i, (_, row) in enumerate(df_funnel.iterrows()):
+            with cols[i]:
+                st.metric(
+                    label=row["status"],
+                    value=row["count"],
+                    help=f"{row['pct']}% of all ads",
+                )
+    else:
+        st.info("Zadna data pro funnel.")
