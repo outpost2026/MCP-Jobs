@@ -582,11 +582,17 @@ with tab_analysis:
         unsafe_allow_html=True,
     )
     df_salary = run_query(
-        "WITH salary_parsed AS ("
+        "WITH salary_parts AS ("
         "  SELECT portal, query_name, salary,"
-        "    REGEXP_REPLACE(SUBSTRING(salary FROM '(\\d[\\d\\s]*)'), '\\s', '', 'g') AS num1,"
-        "    REGEXP_REPLACE(SUBSTRING(salary FROM '\\d[\\d\\s]*\\s*-\\s*(\\d[\\d\\s]*)'), '\\s', '', 'g') AS num2"
+        "    REGEXP_SPLIT_TO_ARRAY(salary, '[-\u2013]') AS parts"
         "  FROM ads WHERE salary IS NOT NULL AND salary ~ '\\d'"
+        "), salary_parsed AS ("
+        "  SELECT portal, query_name, salary,"
+        "    REGEXP_REPLACE(parts[1], '[^0-9]', '', 'g') AS num1,"
+        "    CASE WHEN array_length(parts, 1) > 1"
+        "      THEN REGEXP_REPLACE(parts[2], '[^0-9]', '', 'g')"
+        "      ELSE '' END AS num2"
+        "  FROM salary_parts WHERE REGEXP_REPLACE(parts[1], '[^0-9]', '', 'g') != ''"
         ")"
         "SELECT portal, query_name,"
         "  COUNT(*) AS ads_with_salary,"
@@ -699,4 +705,119 @@ with tab_analysis:
                     help=f"{row['pct']}% of all ads",
                 )
     else:
-        st.info("Zadna data pro funnel.")
+        st.info("Zadne data pro funnel.")
+
+    # ── Query Efficiency ────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown(
+        "<p class='section-header'>Query Efficiency (ktere dotazy jsou produktivni)</p>",
+        unsafe_allow_html=True,
+    )
+    df_query_eff = run_query(
+        "SELECT query_name,"
+        "  COUNT(*) AS total_ads,"
+        "  COUNT(DISTINCT portal) AS portals,"
+        "  COUNT(DISTINCT company) AS companies,"
+        "  ROUND(100.0 * COUNT(CASE WHEN salary IS NOT NULL AND salary != '' THEN 1 END) / COUNT(*), 1) AS salary_pct,"
+        "  ROUND(AVG(LENGTH(description)), 0) AS avg_desc_len"
+        " FROM ads WHERE query_name IS NOT NULL"
+        " GROUP BY query_name ORDER BY total_ads DESC"
+    )
+    if len(df_query_eff) > 0:
+        st.dataframe(
+            df_query_eff,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "query_name": st.column_config.TextColumn("Query"),
+                "total_ads": st.column_config.NumberColumn("Inzeratu"),
+                "portals": st.column_config.NumberColumn("Portalu"),
+                "companies": st.column_config.NumberColumn("Firem"),
+                "salary_pct": st.column_config.NumberColumn("Mzda %"),
+                "avg_desc_len": st.column_config.NumberColumn("Avg popis (znaky)"),
+            },
+        )
+    else:
+        st.info("Zadna data pro query effektivitu.")
+
+    # ── Location Analysis ───────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown(
+        "<p class='section-header'>Location Analysis (top lokace)</p>",
+        unsafe_allow_html=True,
+    )
+    df_locations = run_query(
+        "SELECT location, COUNT(*) AS ads,"
+        "  COUNT(DISTINCT company) AS companies,"
+        "  COUNT(DISTINCT portal) AS portals"
+        " FROM ads WHERE location IS NOT NULL AND location != ''"
+        " GROUP BY location ORDER BY ads DESC LIMIT 15"
+    )
+    if len(df_locations) > 0:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.dataframe(
+                df_locations,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "location": st.column_config.TextColumn("Lokace"),
+                    "ads": st.column_config.NumberColumn("Inzeratu"),
+                    "companies": st.column_config.NumberColumn("Firem"),
+                    "portals": st.column_config.NumberColumn("Portalu"),
+                },
+            )
+        with col2:
+            st.bar_chart(df_locations.set_index("location")["ads"])
+    else:
+        st.info("Zadna data o lokacich.")
+
+    # ── Company Frequency ───────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown(
+        "<p class='section-header'>Company Frequency (top firmy)</p>",
+        unsafe_allow_html=True,
+    )
+    df_companies = run_query(
+        "SELECT company, COUNT(*) AS ads,"
+        "  ARRAY_AGG(DISTINCT portal) AS portals,"
+        "  ARRAY_AGG(DISTINCT query_name) AS queries"
+        " FROM ads WHERE company IS NOT NULL AND company != ''"
+        " GROUP BY company ORDER BY ads DESC LIMIT 15"
+    )
+    if len(df_companies) > 0:
+        st.dataframe(
+            df_companies,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "company": st.column_config.TextColumn("Firma"),
+                "ads": st.column_config.NumberColumn("Inzeratu"),
+                "portals": st.column_config.TextColumn("Portaly"),
+                "queries": st.column_config.TextColumn("Query"),
+            },
+        )
+    else:
+        st.info("Zadna data o firmach.")
+
+    # ── Portal × Query Matrix ───────────────────────────────────────────
+    st.markdown("---")
+    st.markdown(
+        "<p class='section-header'>Portal x Query Matrix (kdo co pokryva)</p>",
+        unsafe_allow_html=True,
+    )
+    df_matrix = run_query(
+        "SELECT portal, query_name, COUNT(*) AS ads"
+        " FROM ads WHERE query_name IS NOT NULL"
+        " GROUP BY portal, query_name ORDER BY portal, ads DESC"
+    )
+    if len(df_matrix) > 0:
+        df_pivot = df_matrix.pivot_table(
+            index="portal", columns="query_name", values="ads", fill_value=0
+        )
+        st.dataframe(
+            df_pivot,
+            use_container_width=True,
+        )
+    else:
+        st.info("Zadna data pro matrix.")
