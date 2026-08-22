@@ -800,7 +800,7 @@ with tab_analysis:
     else:
         st.info("Zadna data o firmach.")
 
-    # ── Portal × Query Matrix ───────────────────────────────────────────
+    # ── Portal x Query Matrix ───────────────────────────────────────────
     st.markdown("---")
     st.markdown(
         "<p class='section-header'>Portal x Query Matrix (kdo co pokryva)</p>",
