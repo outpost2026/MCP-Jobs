@@ -26,6 +26,12 @@ if sys.platform == "win32":
 _REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 
+from dashboard.filters import (
+    build_where_clause,
+    get_active_queries,
+    init_filter_state,
+    render_sidebar_filters,
+)
 from mcp_jobs.db import connect, get_database_url, init_db
 
 # ─── Authentication ──────────────────────────────────────────────────────────
@@ -43,6 +49,9 @@ if not st.session_state.authenticated:
             st.error("Nespravne heslo")
     st.stop()
 
+# ── Filter state ──────────────────────────────────────────────────────────────
+init_filter_state()
+
 # ─── Page config ─────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="MCP-Jobs Dashboard",
@@ -50,57 +59,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ─── Dark theme CSS (adapted from vcf_integrace) ─────────────────────────────
-st.markdown(
-    """
-<style>
-    .stApp { background-color: #0F172A; color: #F8FAFC; }
-    h1, h2, h3, h4 { font-family: 'Inter', -apple-system, sans-serif !important;
-                       font-weight: 700 !important; color: #F8FAFC !important; }
-    .metric-card {
-        background-color: #1E293B; border: 1px solid #334155;
-        border-radius: 12px; padding: 24px; text-align: center;
-        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-    }
-    .metric-value { font-size: 32px; font-weight: 800; color: #10B981; }
-    .metric-label { font-size: 14px; color: #94A3B8; text-transform: uppercase;
-                    letter-spacing: 0.05em; }
-    .gatekeeper-ok {
-        background-color: #064E3B; border-left: 6px solid #10B981;
-        border-radius: 8px; padding: 20px; margin-bottom: 20px;
-    }
-    .gatekeeper-warn {
-        background-color: #1E2030; border-left: 6px solid #F59E0B;
-        border-radius: 8px; padding: 20px; margin-bottom: 20px;
-    }
-    .gatekeeper-critical {
-        background-color: #1E2030; border-left: 6px solid #F43F5E;
-        border-radius: 8px; padding: 20px; margin-bottom: 20px;
-    }
-    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
-    .stTabs [data-baseweb="tab"] { color: #94A3B8; font-weight: 600; }
-    .stTabs [aria-selected="true"] { color: #10B981 !important; }
-    .stButton > button {
-        background-color: #10B981; color: #0F172A; font-weight: 700;
-        border: none; border-radius: 8px;
-    }
-    .stButton > button:hover { background-color: #059669; }
-    .section-header {
-        font-size: 14px; font-weight: 700; color: #94A3B8;
-        margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em;
-    }
-    .detail-desc textarea {
-        font-size: 14px !important;
-        color: #CBD5E1 !important;
-    }
-    .download-section {
-        margin-top: 24px; padding: 16px; background: #111827;
-        border-radius: 10px; border: 1px solid #1E293B;
-    }
-</style>
-""",
-    unsafe_allow_html=True,
-)
+# ─── Dark theme CSS (loaded from theme.css) ────────────────────────────────
+_theme_css = (_REPO_ROOT / "dashboard" / "theme.css").read_text(encoding="utf-8")
+st.markdown(f"<style>{_theme_css}</style>", unsafe_allow_html=True)
 
 st.markdown(
     "<h1 style='text-align: center; margin-bottom: 5px;'>MCP-Jobs Dashboard</h1>",
@@ -127,9 +88,25 @@ except Exception as e:
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+@st.cache_data(ttl=300, show_spinner=False)
 def run_query(sql: str, params: tuple = ()) -> pd.DataFrame:
-    """Execute SQL, return DataFrame."""
+    """Cached SQL -> DataFrame. Invalidate via st.cache_data.clear() after writes."""
     return pd.read_sql(sql, conn, params=params)
+
+
+# ── Available dimension values for multiselects ──────────────────────────────
+_portals = run_query(
+    "SELECT DISTINCT portal FROM ads WHERE portal IS NOT NULL ORDER BY portal"
+)["portal"].tolist()
+_queries = run_query(
+    "SELECT DISTINCT query_name FROM ads WHERE query_name IS NOT NULL ORDER BY query_name"
+)["query_name"].tolist()
+
+render_sidebar_filters(_portals, _queries)
+
+# Shared WHERE for all tabs
+where_sql, where_params = build_where_clause()
+active_queries = get_active_queries()
 
 
 # ─── KPI metrics ──────────────────────────────────────────────────────────────
@@ -230,44 +207,9 @@ tab_ads, tab_analysis, tab_runs = st.tabs(["Inzeraty", "Analyza", "Historie behu
 
 # ─── TAB: Inzeraty ────────────────────────────────────────────────────────────
 with tab_ads:
-    # Filters
-    f1, f2, f3, f4 = st.columns(4)
-    with f1:
-        portals = run_query(
-            "SELECT DISTINCT portal FROM ads WHERE portal IS NOT NULL ORDER BY portal"
-        )["portal"].tolist()
-        portal_filter = st.selectbox("Portal", ["Vse", *portals])
-    with f2:
-        queries = run_query(
-            "SELECT DISTINCT query_name FROM ads WHERE query_name IS NOT NULL ORDER BY query_name"
-        )["query_name"].tolist()
-        query_filter = st.selectbox("Query", ["Vse", *queries])
-    with f3:
-        status_filter = st.selectbox(
-            "Status", ["Vse", "new", "seen", "applied", "rejected"]
-        )
-    with f4:
-        search = st.text_input("Hledat v nazvu/firme")
-
-    # Build query
-    where_clauses = []
-    params: list = []
-    if portal_filter != "Vse":
-        where_clauses.append("portal = %s")
-        params.append(portal_filter)
-    if query_filter != "Vse":
-        where_clauses.append("query_name = %s")
-        params.append(query_filter)
-    if status_filter != "Vse":
-        where_clauses.append("status = %s")
-        params.append(status_filter)
-    if search:
-        where_clauses.append("(title ILIKE %s OR company ILIKE %s)")
-        params.extend([f"%{search}%", f"%{search}%"])
-
-    where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+    # Shared filters from sidebar (filters.py)
     sql = f"SELECT * FROM ads WHERE {where_sql} ORDER BY first_seen DESC, title"
-    df_ads = run_query(sql, tuple(params))
+    df_ads = run_query(sql, tuple(where_params))
 
     # Gatekeeper (cached — only re-queries after status update)
     if "last_run_status" not in st.session_state:
@@ -408,6 +350,7 @@ with tab_ads:
                 conn.execute(
                     "UPDATE ads SET status = %s WHERE id = %s", (new_status, update_id)
                 )
+                st.cache_data.clear()
                 st.success(f"Inzerat #{update_id} -> {new_status}")
                 st.session_state.pop("last_run_status", None)
                 st.rerun()

@@ -1,0 +1,86 @@
+/* MCP-Jobs Dashboard Theme — Dark mode (adapted from vcf_integrace) */
+
+.stApp { background-color: #0F172A; color: #F8FAFC; }
+
+h1, h2, h3, h4 {
+    font-family: 'Inter', -apple-system, sans-serif !important;
+    font-weight: 700 !important;
+    color: #F8FAFC !important;
+}
+
+.metric-card {
+    background-color: #1E293B;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.metric-value { font-size: 32px; font-weight: 800; color: #10B981; }
+
+.metric-label {
+    font-size: 14px;
+    color: #94A3B8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.gatekeeper-ok {
+    background-color: #064E3B;
+    border-left: 6px solid #10B981;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.gatekeeper-warn {
+    background-color: #1E2030;
+    border-left: 6px solid #F59E0B;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.gatekeeper-critical {
+    background-color: #1E2030;
+    border-left: 6px solid #F43F5E;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.stTabs [data-baseweb="tab-list"] { gap: 24px; }
+.stTabs [data-baseweb="tab"] { color: #94A3B8; font-weight: 600; }
+.stTabs [aria-selected="true"] { color: #10B981 !important; }
+
+.stButton > button {
+    background-color: #10B981;
+    color: #0F172A;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+}
+.stButton > button:hover { background-color: #059669; }
+
+.section-header {
+    font-size: 14px;
+    font-weight: 700;
+    color: #94A3B8;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.detail-desc textarea {
+    font-size: 14px !important;
+    color: #CBD5E1 !important;
+}
+
+.download-section {
+    margin-top: 24px;
+    padding: 16px;
+    background: #111827;
+    border-radius: 10px;
+    border: 1px solid #1E293B;
+}
