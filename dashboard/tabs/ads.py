@@ -23,7 +23,14 @@ def _render_detail(r: pd.Series) -> None:
     """Render single ad detail inline (tags after header, before description)."""
     import json as _json
 
-    st.markdown(f"### {r['title']}")
+    # H3 title as hyperlink
+    url = r.get("url", "#")
+    title = _html.escape(str(r["title"]))
+    st.markdown(
+        f"<h3 style='margin-bottom:4px;'><a href='{url}' target='_blank' "
+        f"style='color:#E2E8F0;text-decoration:none;'>{title}</a></h3>",
+        unsafe_allow_html=True,
+    )
 
     # IT Stack tags -- immediately after header for quick orientation
     skills = None
@@ -43,6 +50,7 @@ def _render_detail(r: pd.Series) -> None:
         st.markdown(tags_html, unsafe_allow_html=True)
 
     # Metadata columns
+    score_val = skills.get("score", 0) if skills else 0
     m1, m2, m3 = st.columns(3)
     with m1:
         st.markdown(f"**Firma:** {r['company'] or '-'}")
@@ -53,9 +61,9 @@ def _render_detail(r: pd.Series) -> None:
         st.markdown(f"**Query:** {r['query_name'] or '-'}")
         st.markdown(f"**Status:** {r['status'] or '-'}")
     with m3:
-        st.markdown(f"**Prvni videni:** {r['first_seen']}")
+        st.markdown(f"**Datum:** {r['first_seen']}")
         st.markdown(f"**Keyword:** {r['matched_keyword'] or '-'}")
-        st.markdown(f"**Tech Score:** {r.get('tech_score', 0) or 0:.1f}")
+        st.markdown(f"**Tech Score:** {score_val:.1f}")
     st.markdown("---")
 
     # Description
@@ -76,7 +84,6 @@ def _render_detail(r: pd.Series) -> None:
         domain = skills.get("domain", {})
         c3.metric("Domain Score", f"{domain.get('score', 0):.0f}")
         c4.metric("Employer Tier", skills.get("employer_tier", "-"))
-    st.markdown(f"[Otevrit na portale]({r['url']})")
 
 
 def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
@@ -140,7 +147,7 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
             "tech_score": st.column_config.NumberColumn(
                 "Score", format="%.1f", width="small"
             ),
-            "first_seen": st.column_config.DateColumn("Videno"),
+            "first_seen": st.column_config.DateColumn("Datum"),
             "portal": st.column_config.TextColumn("Portal"),
             "query_name": st.column_config.TextColumn("Query"),
         },

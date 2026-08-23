@@ -19,16 +19,16 @@ h2, h3, h4 {
 .metric-card {
     background-color: #1E293B;
     border: 1px solid #334155;
-    border-radius: 10px;
-    padding: 16px;
+    border-radius: 8px;
+    padding: 8px;
     text-align: center;
-    box-shadow: 0 2px 4px -1px rgb(0 0 0 / 0.1);
+    box-shadow: 0 1px 2px -1px rgb(0 0 0 / 0.1);
 }
 
-.metric-value { font-size: 28px; font-weight: 700; color: #10B981; }
+.metric-value { font-size: 16px; font-weight: 700; color: #10B981; }
 
 .metric-label {
-    font-size: 11px;
+    font-size: 10px;
     color: #94A3B8;
     text-transform: uppercase;
     letter-spacing: 0.05em;
