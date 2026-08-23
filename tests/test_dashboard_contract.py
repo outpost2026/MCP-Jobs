@@ -73,12 +73,14 @@ class TestInterface:
         assert "days" in sig.parameters
 
     def test_filters_build_where(self):
+        pytest.importorskip("streamlit")
         from dashboard.filters import build_where_clause
 
         sig = inspect.signature(build_where_clause)
         assert len(sig.parameters) == 0  # no required args
 
     def test_filters_init_filter_state(self):
+        pytest.importorskip("streamlit")
         from dashboard.filters import init_filter_state
 
         sig = inspect.signature(init_filter_state)
