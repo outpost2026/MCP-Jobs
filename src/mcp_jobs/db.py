@@ -78,9 +78,28 @@ def _load_env(path: Path = _ENV_PATH) -> None:
 
 
 def get_database_url() -> str:
-    """Return DATABASE_URL or '' (empty = DB disabled). Loads .env if needed."""
-    if not os.environ.get("DATABASE_URL"):
-        _load_env()
+    """Return DATABASE_URL or '' (empty = DB disabled).
+
+    Priority:
+    1. Environment variable (docker-compose, .env, CI)
+    2. Streamlit secrets (Community Cloud deployment)
+    3. .env file fallback (local dev)
+    """
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if url:
+        return url
+
+    # Streamlit secrets (Community Cloud)
+    try:
+        import streamlit as st
+
+        if hasattr(st, "secrets") and "DATABASE_URL" in st.secrets:
+            return st.secrets["DATABASE_URL"].strip()
+    except (ImportError, FileNotFoundError):
+        pass
+
+    # .env file fallback
+    _load_env()
     return os.environ.get("DATABASE_URL", "").strip()
 
 
