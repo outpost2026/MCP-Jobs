@@ -2,7 +2,7 @@
 
 # MCP-Jobs
 
-MCP server pro tržní inteligenci nad českými pracovními portály — **6 providerů**, boolean matching, 3-vrstvý dedup, **PostgreSQL perzistence**, MCP rozhraní pro AI agenty, **Streamlit dashboard**. Nástupce legacy scrapers — **5.8× rychlejší**, config-driven, **198 testů** (včetně contract tests), hardening pro produkci.
+MCP server pro tržní inteligenci nad českými pracovními portály — **6 providerů**, boolean matching, 3-vrstvý dedup, **PostgreSQL perzistence**, MCP rozhraní pro AI agenty, **Streamlit dashboard**, **skills catalog (119 IT skills, v2 scoring)**. Nástupce legacy scrapers — **5.8× rychlejší**, config-driven, **231 testů** (včetně contract tests), hardening pro produkci.
 - **ukázka produkčního výstupu**: automaticky generované html = [IT domain job search output](https://systeq.cz/projekty/MCP-jobs/etl_AI_NATIVE_20260820_115544.html)
 
 **Co to je:** autonomně vyvinutý, iterativně tvrzený systém — od scraping adapteru přes normalizaci, dedup a perzistenci až po AI-facing MCP protokol. Každá vrstva (HTTP → scraping → normalizace → matcher → dedup → persistence → MCP) je oddělena přes stabilní rozhraní, takže přidání nového portálu nevyžaduje přepis centrální pipeline.
@@ -31,50 +31,61 @@ MCP server pro tržní inteligenci nad českými pracovními portály — **6 pr
 
 - **Structured logging** — per-card skip count, 0-ads alert, žádné silent failures
 
-- **Streamlit dashboard** — modulární frontend (`dashboard/`): shared filters, pure SQL metrics, status badges, bulk update, contract tests
+- **Streamlit dashboard** — v2 layout (table-first, on_select row selection, inline detail+status, sidebar KPI), modulární frontend, shared filters, pure SQL metrics, contract tests
+
+- **Skills catalog** — 119 IT skills, 27 kategorií, v2 scoring formule (coverage 60pts + log_count 30pts + diversity 10pts), per-skill weights kalibrované pro CZ trh, PostgreSQL JSONB + GIN index
 
 ## Architektura
 
 ```
-src/mcp\_jobs/  
-├── config.py          \# UserConfig → PortalConfig → CategoryConfig → QueryConfig  
-├── models.py          \# Ad dataclass (title, url, portal, desc, company, ...)  
-├── http.py            \# HTTP klient s retry, timeout, rate limiting  
-├── matcher.py         \# Boolean AST evaluator + LRU cache + exclude filter + strip\_diacritics  
-├── utils.py           \# normalize\_url, fuzzy\_key — centrální dedup normalizace  
-├── pipeline.py        \# SearchPipeline orchestrator (scrape → filter → results → persist)  
-├── storage.py         \# Unified output (etl\_\{PROFILE\}\_\{ts\}.\{json,md,html\}) + dedup  
-├── db.py              \# PostgreSQL persistence (schema.sql, upsert\_ads batched, run audit)  
-├── report.py          \# Report rendering (markdown/html, priority flags, match tags)  
-├── report\_style.py    \# Report CSS/HTML šablony  
-├── providers/         \# Portal-specific scrapers  
-│   ├── base.py        \# BaseScraper ABC + detail extraction helper  
-│   ├── bazos.py       \# Bazos.cz s params podporou (hlokalita, humkreis)  
-│   ├── jobs.py        \# Jobs.cz (LMC network)  
-│   ├── pracecz.py     \# Prace.cz (LMC network)  
-│   ├── jenprace.py    \# Jenprace.cz  
-│   ├── profesia.py    \# Profesia.cz (ManpowerGroup layout varianta)  
-│   └── volnamista.py  \# Volnamista.cz (Seznam.cz — anti-bot headers, JSON-LD/NEXT\_DATA)  
-├── server.py          \# FastMCP instance + tool/resource/prompt registrace + async job runner  
-└── cli.py             \# CLI entry point (stdio MCP transport)  
-data/  
-├── schema.sql         \# DDL pro PostgreSQL (ads, pipeline\_runs, UNIQUE url, fuzzy sloupce)  
-└── query\_store.json   \# Persistence query výstupů  
-output/                \# ETL výstupy etl\_\{PROFILE\}\_\{ts\}.\{json,md,html\}  
-dashboard/             \# Streamlit frontend (modulární balíček)  
-├── app.py             \# Auth, config, tab routing  
-├── filters.py         \# Shared sidebar filters + WHERE builder  
-├── metrics.py         \# Pure SQL analytics (10 functions, 0 Streamlit calls)  
-├── theme.css          \# Dark mode production theme  
-├── components/        \# KPI cards, gatekeeper, styling  
-└── tabs/              \# Inzeraty, Analyza, Historie behu  
-scripts/  
-├── run\_etl.py           \# Základní ETL runner  
-├── run\_etl\_metrics.py   \# ETL runner s per-provider timingem  
-├── run\_livetests.py     \# Live test runner (structured results do data/)  
-├── db.ps1               \# DB operace (restart, psql, logy, dedup check)  
-└── healthcheck.py       \# Healthcheck (dry-mode bez DB)  
-docker-compose.yml     \# PostgreSQL 16 (volume, schema.sql init, healthcheck)
+src/mcp_jobs/
+├── config.py          # UserConfig → PortalConfig → CategoryConfig → QueryConfig
+├── models.py          # Ad dataclass (title, url, portal, desc, company, ...)
+├── http.py            # HTTP klient s retry, timeout, rate limiting
+├── matcher.py         # Boolean AST evaluator + LRU cache + exclude filter + strip_diacritics
+├── utils.py           # normalize_url, fuzzy_key — centrální dedup normalizace
+├── pipeline.py        # SearchPipeline orchestrator (scrape → filter → results → persist)
+├── storage.py         # Unified output (etl_{PROFILE}_{ts}.{json,md,html}) + dedup
+├── db.py              # PostgreSQL persistence (schema.sql, upsert_ads batched, run audit)
+├── skills_catalog.py  # SkillsCatalog — v2 scoring (coverage + log_count + diversity)
+├── report.py          # Report rendering (markdown/html, priority flags, match tags)
+├── report_style.py    # Report CSS/HTML šablony
+├── providers/         # Portal-specific scrapers
+│   ├── base.py        # BaseScraper ABC + detail extraction helper
+│   ├── bazos.py       # Bazos.cz s params podporou (hlokalita, humkreis)
+│   ├── jobs.py        # Jobs.cz (LMC network)
+│   ├── pracecz.py     # Prace.cz (LMC network)
+│   ├── jenprace.py    # Jenprace.cz
+│   ├── profesia.py    # Profesia.cz (ManpowerGroup layout varianta)
+│   └── volnamista.py  # Volnamista.cz (Seznam.cz — anti-bot headers, JSON-LD/NEXT_DATA)
+├── server.py          # FastMCP instance + tool/resource/prompt registrace + async job runner
+└── cli.py             # CLI entry point (stdio MCP transport)
+data/
+├── schema.sql         # DDL pro PostgreSQL (ads, pipeline_runs, UNIQUE url, fuzzy sloupce)
+├── query_store.json   # Persistence query výstupů
+└── _archived_bazos/   # Archivované staré bazos/nyx JSON (v1 data)
+output/                # ETL výstupy etl_{PROFILE}_{ts}.{json,md,html}
+dashboard/             # Streamlit frontend (v2 — table-first, on_select, sidebar KPI)
+├── app.py             # Auth, sidebar gatekeeper + KPI, tab routing
+├── filters.py         # Shared sidebar filters + WHERE builder
+├── metrics.py         # Pure SQL analytics (12 functions, 0 Streamlit calls)
+├── theme.css          # Dark mode production theme
+├── components/
+│   ├── kpi.py         # KPI cards (main + sidebar compact)
+│   ├── gatekeeper.py  # Pipeline status (sidebar compact)
+│   └── styling.py     # Shared styling utilities
+└── tabs/
+    ├── ads.py         # Table-first, on_select row selection, inline detail + status change
+    ├── analysis.py    # Skills analytika, top ads, histogram
+    └── runs.py        # Pipeline history
+scripts/
+├── run_etl.py           # Základní ETL runner
+├── run_etl_metrics.py   # ETL runner s per-provider timingem
+├── run_livetests.py     # Live test runner (structured results do data/)
+├── backfill_skills.py   # Batch backfill skills (--force pro prepis v1→v2)
+├── db.ps1               # DB operace (restart, psql, logy, dedup check)
+└── healthcheck.py       # Healthcheck (dry-mode bez DB)
+docker-compose.yml     # PostgreSQL 16 (volume, schema.sql init, healthcheck)
 ```
 
 ## Engineering highlights
@@ -110,7 +121,7 @@ docker compose up -d
 copy .env.example .env   \# nastav DATABASE\_URL=postgres://mcpjobs:mcpjobs@localhost:5432/mcpjobs  
 \# nebo: scripts\\db.ps1 (restart, psql, logy)  
   
-\# Testy (198 testů; DB testy běží na mcpjobs\_test, jinak se skipnou + 9 contract tests)  
+\# Testy (231 testů; DB testy běží na mcpjobs_test, jinak se skipnou + 9 contract tests)  
 pytest tests/ -v  
   
 \# ETL pipeline  
@@ -177,7 +188,7 @@ queries:
 | Per-provider bazos | ~80 s | **~12 s** | **6.7× faster** |
 | Per-provider jobs | ~40 s | **~8 s** | **5.0× faster** |
 | Per-provider pracecz | ~60 s | **~16 s** | **3.8× faster** |
-| Unit tests | 0 | **198** (9 contract) | — |
+| Unit tests | 0 | **231** (9 contract) | — |
 | Matching | AND-only, first-match-wins | **Boolean AST + LRU cache** | plná logika |
 | Diakritika | ruční mapping | **NFKD normalizace** | automatická |
 | Error handling | `except: continue` (silent) | **structured logging + skip count** | žádné silent failures |
@@ -229,6 +240,44 @@ Každý ETL běh generuje unified `output/etl\_\{PROFILE\}\_\{ts\}.\{json,md,htm
 
 - **L4 Streaming** — plánováno
 
+## Skills Catalog
+
+119 IT skills v 27 kategoriích, kalibrovaných pro CZ trh (TIOBE 2026, ABSL Report, ManpowerGroup Q2).
+
+### Scoring formule v2
+
+```python
+coverage_score = min(60.0, math.log1p(mentioned_weighted * 10.0) * 12.0)
+count_score = (math.log2(1 + skill_count) / math.log2(8)) * 30.0
+diversity_score = (unique_categories / skill_count * 10.0) if skill_count > 0 else 0.0
+score = min(100.0, coverage_score + count_score + diversity_score)
+```
+
+### Score distribuce (183 ads z PostgreSQL)
+
+```
+  0 (no skills):   93 ads (51%) — ne-IT queries
+  1-39:             2 ads (1%)
+  40-59:           19 ads (10%) — dual skill
+  60-79:           16 ads (9%) — multi skill
+  80+:             53 ads (29%) — rich IT stack
+```
+
+### Kalibrované váhy (TOP 10)
+
+| Skill | Váha | Zdroj |
+|-------|------|-------|
+| Python | 1.00 | TIOBE #1 |
+| AI | 0.80 | LinkedIn +287% |
+| K8s | 0.60 | LinkedIn +78% |
+| LLM | 0.60 | Top trend |
+| CNC | 0.60 | CZ industrial niche |
+| AWS | 0.50 | Synergy 31% |
+| Azure | 0.50 | Synergy 25% |
+| Java | 0.50 | TIOBE #4 |
+| C# | 0.50 | TIOBE #5 |
+| SQL | 0.80 | TIOBE #8 |
+
 ## Dokumentace
 
 Deep reasoning a audit artefakty jsou v `docs/`, README zůstává interface/overview/proof:
@@ -263,19 +312,20 @@ Deep reasoning a audit artefakty jsou v `docs/`, README zůstává interface/ove
 
 - **Domain allowlist**: SEC-001 SSRF protection — 6 povolených domén (bazos.cz, jobs.cz, prace.cz, jenprace.cz, profesia.cz, volnamista.cz)
 
-## Vývojový stav (2026-08-22)
+## Vývojový stav (2026-08-23)
 
 | Oblast | Stav |
 | - | - |
-| Verze | 0.4.0 |
-| Testy | 198/198 PASS (189 unit + 9 contract), ruff 0 |
+| Verze | 0.5.0 |
+| Testy | 231/231 PASS (222 unit + 9 contract), ruff 0 |
 | Portály | 6/6 (jobs, pracecz, bazos, jenprace, profesia, volnamista) |
 | Dedup | 3-vrstvý (URL canonical → fuzzy in-memory → DB cross-portal) |
-| PostgreSQL | Fáze 1 done: schema, docker-compose, db.py, .env self-contained |
+| PostgreSQL | 183 ads, v2 scoring (coverage+log_count+diversity), backup v1 |
+| Skills | 119 IT skills, 27 kategorií, v2 formule, per-skill CZ weights |
 | Anti-bot | Seznam.cz consent-page fix, end-of-list detekce |
 | MCP | L1-L3 (6 tools, resources, prompt), L4 plánováno |
-| Dashboard | Streamlit frontend: modulární balíček, shared filters, pure SQL metrics, bulk status, contract tests |
-| CI | Test DB `mcpjobs\_test` krok v ci.yml, pandas<3 pin |
-| Backlog | Engineering-proces Phase 09 (uv, ruff+mypy, GH Actions, pre-commit, coverage), produktový Phase 09 (FTS5, Dockerfile non-root, `\_\_main\_\_.py`+`--smoke`) |
+| Dashboard | v2: table-first, on_select, inline detail+status, sidebar KPI, h3 hyperlink |
+| CI | Test DB mcpjobs_test krok v ci.yml, pandas<3 pin |
+| Backlog | EROI dimenze (L1), employer tiers, location_score, 84 default skill vah |
 
 
