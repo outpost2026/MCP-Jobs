@@ -43,6 +43,8 @@ class TechScoreResult:
     detail: str = ""
     mentioned_weighted: float = 0.0
     coverage: float = 0.0
+    compression_ratio: float = 0.0
+    density_bonus: float = 0.0
 
 
 def _load_config(path: Path | None = None) -> dict[str, Any]:
@@ -164,12 +166,14 @@ class SkillsCatalog:
 
         Returns TechScoreResult with score 0-100.
 
-        Scoring formula (adapted from linkedin-mcp-custom):
-          mentioned_weighted = sum of weights of all matched skills
-          coverage = mentioned_weighted / max_possible
-          coverage_multiplier = min(1.0, coverage * 5.0)
-          score = coverage_multiplier * 100.0
+        Scoring v2 (D1+D2 fix):
+          - coverage component (60 pts): log-scaled mentioned_weighted / max_possible
+          - skill count bonus (30 pts): log2(1 + count) / log2(8) * 30
+          - diversity bonus (10 pts): unique_categories / count * 10
+          More skills = higher score (D2 fix). Smooth gradient (D1 fix).
         """
+        import math
+
         matches = self.match_description(text)
 
         if not matches:
@@ -179,14 +183,32 @@ class SkillsCatalog:
                 detail="No skills detected",
                 mentioned_weighted=0.0,
                 coverage=0.0,
+                compression_ratio=0.0,
+                density_bonus=0.0,
             )
 
         mentioned_weighted = sum(m.weight for m in matches)
         coverage = (
             mentioned_weighted / self._max_possible if self._max_possible > 0 else 0.0
         )
-        coverage_multiplier = min(1.0, coverage * 5.0)
-        score = coverage_multiplier * 100.0
+
+        text_length = len(text)
+        skill_count = len(matches)
+        compression_ratio = text_length / skill_count if skill_count > 0 else 0.0
+
+        # Component 1: coverage (60 pts) — log-scaled to spread low values
+        coverage_score = min(60.0, math.log1p(mentioned_weighted * 10.0) * 12.0)
+
+        # Component 2: skill count (30 pts) — log2 scale, 8 skills = max
+        count_score = (math.log2(1 + skill_count) / math.log2(8)) * 30.0
+
+        # Component 3: diversity (10 pts) — unique categories ratio
+        unique_categories = len(set(m.category for m in matches))
+        diversity_score = (
+            (unique_categories / skill_count * 10.0) if skill_count > 0 else 0.0
+        )
+
+        score = min(100.0, coverage_score + count_score + diversity_score)
 
         direct = sum(1 for m in matches if m.match_type == "direct_match")
         partial = sum(1 for m in matches if m.match_type == "partial_match")
@@ -194,11 +216,13 @@ class SkillsCatalog:
         detail = f"{len(matches)} skills: {direct} direct, {partial} partial, {gap} gap"
 
         return TechScoreResult(
-            score=round(min(score, 100.0), 1),
+            score=round(score, 1),
             matches=matches,
             detail=detail,
             mentioned_weighted=round(mentioned_weighted, 2),
             coverage=round(coverage, 4),
+            compression_ratio=round(compression_ratio, 1),
+            density_bonus=round(diversity_score, 1),
         )
 
     def domain_score(self, text: str) -> tuple[float, str]:

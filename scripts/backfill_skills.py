@@ -72,6 +72,8 @@ def backfill_skills(dry_run: bool = False) -> None:
                 "score": ts.score,
                 "coverage": ts.coverage,
                 "mentioned_weighted": ts.mentioned_weighted,
+                "compression_ratio": ts.compression_ratio,
+                "density_bonus": ts.density_bonus,
                 "matches": [
                     {
                         "skill_id": m.skill_id,
