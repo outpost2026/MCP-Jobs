@@ -136,6 +136,7 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
         df_ads[display_cols],
         use_container_width=True,
         hide_index=True,
+        on_select="rerun",
         column_config={
             "id": st.column_config.NumberColumn("ID", width="small"),
             "title": st.column_config.TextColumn("Nazev", width="large"),
@@ -152,11 +153,14 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
         },
     )
 
-    # Get selected row IDs from selection
-    selected_indices = event.selection.rows if event and event.selection else []
-    selected_ids = (
-        df_ads.iloc[selected_indices]["id"].tolist() if selected_indices else []
-    )
+    # Get selected row IDs -- guard against stale indices after filter change
+    selected_indices = []
+    selected_ids = []
+    if event and event.selection and event.selection.rows:
+        valid_max = len(df_ads) - 1
+        selected_indices = [i for i in event.selection.rows if i <= valid_max]
+        if selected_indices:
+            selected_ids = df_ads.iloc[selected_indices]["id"].tolist()
 
     # === QUICK ACTIONS (below table -- detail + status) ===
     if selected_ids:
