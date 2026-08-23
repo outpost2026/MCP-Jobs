@@ -28,8 +28,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def backfill_skills(dry_run: bool = False) -> None:
-    """Process all ads with description but empty skills."""
+def backfill_skills(dry_run: bool = False, force: bool = False) -> None:
+    """Process all ads with description. With --force, re-score even existing skills."""
     url = get_database_url()
     if not url:
         logger.error("DATABASE_URL not set — aborting")
@@ -42,10 +42,13 @@ def backfill_skills(dry_run: bool = False) -> None:
     logger.info("Catalog loaded: %d skills", catalog.skill_count)
 
     # Fetch ads needing backfill
+    where = (
+        "WHERE description IS NOT NULL AND description != ''"
+        if not force
+        else "WHERE description IS NOT NULL AND description != ''"
+    )
     rows = conn.execute(
-        "SELECT id, title, company, description FROM ads "
-        "WHERE description IS NOT NULL AND description != '' "
-        "AND (skills IS NULL OR skills = '[]'::jsonb)"
+        "SELECT id, title, company, description FROM ads " + where
     ).fetchall()
 
     logger.info("Found %d ads needing skill extraction", len(rows))
@@ -121,5 +124,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dry-run", action="store_true", help="Show what would be done without writing"
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-score ALL ads (overwrite existing skills)",
+    )
     args = parser.parse_args()
-    backfill_skills(dry_run=args.dry_run)
+    backfill_skills(dry_run=args.dry_run, force=args.force)
