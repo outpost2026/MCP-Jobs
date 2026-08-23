@@ -21,6 +21,8 @@ if sys.platform == "win32":
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 
+from dashboard.components.gatekeeper import render_gatekeeper  # noqa: E402
+from dashboard.components.kpi import render_kpi_sidebar  # noqa: E402
 from dashboard.filters import (  # noqa: E402
     build_where_clause,
     get_active_queries,
@@ -110,6 +112,23 @@ def main():
     st.session_state.available_skills = _skills_df["skill"].tolist()
 
     render_sidebar_filters(_portals, _queries)
+
+    # -- Gatekeeper + sidebar KPI (compact, always visible) --
+    _total_df = run_query("SELECT COUNT(*) AS cnt FROM ads")
+    _total_ads = int(_total_df.iloc[0]["cnt"]) if len(_total_df) > 0 else 0
+    if "last_run_status" not in st.session_state:
+        df_runs = run_query(
+            "SELECT status FROM pipeline_runs ORDER BY started_at DESC LIMIT 1"
+        )
+        st.session_state.last_run_status = (
+            df_runs.iloc[0]["status"] if len(df_runs) > 0 else None
+        )
+    render_gatekeeper(_total_ads, st.session_state.last_run_status)
+    render_kpi_sidebar(
+        run_query(
+            "SELECT tech_score FROM (SELECT (skills->>'score')::float AS tech_score FROM ads WHERE skills IS NOT NULL AND skills != '[]'::jsonb) t",
+        )
+    )
 
     # Shared WHERE for all tabs
     where_sql, where_params = build_where_clause()
