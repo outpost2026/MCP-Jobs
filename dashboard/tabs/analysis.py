@@ -14,6 +14,7 @@ from dashboard.metrics import (
     stale_vs_fresh,
     status_funnel,
     tech_score_distribution,
+    top_scored_ads,
     top_skills,
     velocity,
 )
@@ -33,9 +34,18 @@ def render_analysis_tab(conn, active_queries) -> None:
     else:
         st.info("Zadne skills data. Spust backfill_skills.py.")
 
+    # -- Top scored ads
+    st.markdown("---")
+    st.markdown("**Top Ads by Tech Score (v2)**")
+    df_top = top_scored_ads(conn, limit=10)
+    if not df_top.empty:
+        st.dataframe(df_top, use_container_width=True, hide_index=True)
+    else:
+        st.info("Zadna top scored ads.")
+
     # -- Tech score distribution
     st.markdown("---")
-    st.markdown("**Tech Score Distribution**")
+    st.markdown("**Tech Score Distribution (v2)**")
     df_dist = tech_score_distribution(conn)
     if not df_dist.empty:
         st.dataframe(df_dist, use_container_width=True, hide_index=True)

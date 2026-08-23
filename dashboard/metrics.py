@@ -26,11 +26,12 @@ def fetch_ads(
     params: Sequence = (),
     min_completeness: int = 0,
 ) -> pd.DataFrame:
-    """Filtered ads with computed completeness."""
+    """Filtered ads with computed completeness and tech_score."""
     sql = f"""
         SELECT
             id, title, url, company, location, salary, status,
-            first_seen, description, portal, query_name, matched_keyword
+            first_seen, description, portal, query_name, matched_keyword,
+            (skills->>'score')::float AS tech_score
         FROM ads
         WHERE {where_sql}
         ORDER BY first_seen DESC, title
@@ -327,20 +328,15 @@ def top_skills(conn, limit: int = 15) -> pd.DataFrame:
 
 
 def tech_score_distribution(conn) -> pd.DataFrame:
-    """Tech score histogram buckets."""
+    """Tech score histogram buckets (v2 scoring: 0=no skills, 40-100=IT)."""
     sql = """
         SELECT
             CASE
-                WHEN (skills->>'score')::float < 10 THEN '0-10'
-                WHEN (skills->>'score')::float < 20 THEN '10-20'
-                WHEN (skills->>'score')::float < 30 THEN '20-30'
-                WHEN (skills->>'score')::float < 40 THEN '30-40'
-                WHEN (skills->>'score')::float < 50 THEN '40-50'
-                WHEN (skills->>'score')::float < 60 THEN '50-60'
-                WHEN (skills->>'score')::float < 70 THEN '60-70'
-                WHEN (skills->>'score')::float < 80 THEN '70-80'
-                WHEN (skills->>'score')::float < 90 THEN '80-90'
-                ELSE '90-100'
+                WHEN (skills->>'score')::float = 0 THEN '0 (no skills)'
+                WHEN (skills->>'score')::float < 40 THEN '1-39 (single skill)'
+                WHEN (skills->>'score')::float < 60 THEN '40-59 (dual skill)'
+                WHEN (skills->>'score')::float < 80 THEN '60-79 (multi skill)'
+                ELSE '80+ (rich stack)'
             END AS bucket,
             COUNT(*) AS cnt
         FROM ads
@@ -366,3 +362,22 @@ def skills_by_domain(conn) -> pd.DataFrame:
         ORDER BY query_name, cnt DESC
     """
     return _read(conn, sql)
+
+
+def top_scored_ads(conn, limit: int = 10) -> pd.DataFrame:
+    """Top ads by tech_score with skill details."""
+    sql = """
+        SELECT
+            id, title, company, portal, query_name,
+            (skills->>'score')::float AS tech_score,
+            (skills->>'coverage')::float AS coverage,
+            jsonb_array_length(skills->'matches') AS skill_count,
+            skills->'domain'->>'score' AS domain_score,
+            skills->>'employer_tier' AS employer_tier
+        FROM ads
+        WHERE skills IS NOT NULL AND skills != '[]'::jsonb
+          AND (skills->>'score')::float > 0
+        ORDER BY (skills->>'score')::float DESC
+        LIMIT %s
+    """
+    return _read(conn, sql, (limit,))

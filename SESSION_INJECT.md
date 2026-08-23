@@ -21,7 +21,8 @@
 ### Pending ⏳
 | Fáze | Popis | Status |
 |------|-------|--------|
-| Commit + push | Nová formule na skill_catalog branch | ⏳ NEZAHÁJENO |
+| Commit + push | Nová formule na skill_catalog branch | ✅ DONE (1835e8f) |
+| PostgreSQL v2 backfill | 183 ads prepsano na v2 (145 updated) | ✅ DONE |
 | Dashboard update | Aktualizace histogramu pro nové skóre | ⏳ NEZAHÁJENO |
 | Final validation | End-to-end test na reálných datech | ⏳ NEZAHÁJENO |
 
@@ -130,30 +131,42 @@ D3 vyřešeno: archivace starých bazos/nyx JSON (global search ≠ category scr
 
 ---
 
-## 5. DB STATISTIKY (po kompresní kalibraci)
+## 5. DB STATISTIKY (po v2 backfill — 2026-08-23)
 
 ```
-Coverage: 145/183 (79%)
-Unikátních skills: 98
-Kategorií: 25
-Celkem matchů: 291
+Total ads: 183
+With skills: 145 (79%)
+Zero-score: 93 (non-IT queries: udrzbar, zahradnik, strechy)
+Avg skills per matched ad: varies (1-13)
 
-Score distribuce:
-  0-10:  93 (64%)
- 30-40:  17 (12%)
- 80-90:  10 (7%)
-   90+:   2 (1%)
+Score distribuce (v2):
+  0 (no skills):   93 ads
+  1-39:             2 ads
+  40-59:           19 ads
+  60-79:           16 ads
+  80+:             53 ads
+
+Portal avg score (v2):
+  jobs:      47.9 (28/61 with skills)
+  profesia:  25.4 (1/3)
+  jenprace:  21.2 (15/38)
+  pracecz:   10.4 (8/62)
+  bazos:      0.0 (0/14)
+  volnamista: 0.0 (0/5)
+
+Backup: ads_v1_backup table (183 rows, v1 scores)
 ```
 
 ---
 
 ## 6. NEXT STEPS
 
-1. **Commit + push** — v2 formule + archivace starých dat + skills_config kalibrace
-2. **Dashboard update** — aktualizovat histogram pro v2 skóre (0-100 rozsah)
-3. **EROI dimenze (L1)** — převzato z linkedin-mcp-custom, netestováno na CZ trh
-4. **84 default skill vah (L2)** — arbitrární hodnoty, potenciální kalibrace
-5. **CZ employer tiers** — strategic/growth seznamy prázdné/malé
+1. ~~Commit + push~~ — ✅ DONE (1835e8f)
+2. ~~PostgreSQL v2 backfill~~ — ✅ DONE (183 ads)
+3. **Dashboard update** — aktualizovat histogram pro v2 skóre (0-100 rozsah)
+4. **EROI dimenze (L1)** — převzato z linkedin-mcp-custom, netestováno na CZ trh
+5. **84 default skill vah (L2)** — arbitrární hodnoty, potenciální kalibrace
+6. **CZ employer tiers** — strategic/growth seznamy prázdné/malé
 
 ---
 
@@ -168,18 +181,35 @@ Score distribuce:
 
 ---
 
-## 8. KNOWN ISSUES
+## 8. DATA ARCHITECTURE
+
+```
+PostgreSQL (mcp-jobs-postgres) = PRIMARNI
+  - 183 ads, v2 scoring
+  - Pipeline pise pres persist_run() → upsert_ads() → _extract_skills()
+  - Backup: ads_v1_backup table
+
+JSON files = OUTPUT ARTIFACTS (ne data store)
+  - etl_*.json, etl_*.md, etl_*.html — reporty
+  - pipeline_latest.json, pipeline_debug.json — debug data
+
+data/results_*.json = ZRUSENO (legacy v1 data, odstraneno drive)
+```
+
+---
+
+## 9. KNOWN ISSUES
 
 - `test_report.py` — 1 pre-existing fail (date-dependent, ignorovat)
 - 84 skillů s default vahou (0.30-0.50) — potenciální budoucí kalibrace
 - employer_tier: všechny ads = "unknown" (strategic/growth seznam prázdný)
 - location_score: fixní 35.0 pro všechny (neimplementováno)
 - EROI dimenze (L1): převzato z linkedin-mcp-custom, netestováno na CZ trh
-- location_score: fixní 35.0 pro všechny (neimplementováno)
+- Dashboard: histogram stále ukazuje v1 rozsah (0-100, ale jiná distribuce)
 
 ---
 
-## 9. ZDROJE PRO DALŠÍ KALIBRACI
+## 10. ZDROJE PRO DALŠÍ KALIBRACI
 
 - LinkedIn Jobs on the Rise 2026
 - Stack Overflow Developer Survey 2025

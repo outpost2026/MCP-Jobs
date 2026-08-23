@@ -69,6 +69,7 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
             "location",
             "salary",
             "status_badge",
+            "tech_score",
             "completeness_label",
             "first_seen",
             "portal",
@@ -86,6 +87,9 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
                 "location": st.column_config.TextColumn("Lokace"),
                 "salary": st.column_config.TextColumn("Mzda"),
                 "status_badge": st.column_config.TextColumn("Status"),
+                "tech_score": st.column_config.NumberColumn(
+                    "Tech Score", format="%.1f", width="small"
+                ),
                 "completeness_label": st.column_config.TextColumn("Data %"),
                 "first_seen": st.column_config.DateColumn("Prvni videni"),
                 "portal": st.column_config.TextColumn("Portal"),

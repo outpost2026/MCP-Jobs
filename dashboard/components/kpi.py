@@ -19,7 +19,16 @@ def render_kpi(df: pd.DataFrame) -> None:
     salary_pct = round(100 * with_salary / total, 1) if total > 0 else 0
     desc_pct = round(100 * with_desc / total, 1) if total > 0 else 0
 
-    k1, k2, k3, k4, k5, k6 = st.columns(6)
+    # Tech score metrics (v2)
+    if "tech_score" in df.columns:
+        scores = df["tech_score"].dropna()
+        high_tech = len(scores[scores >= 60])
+        avg_score = round(scores.mean(), 1) if len(scores) > 0 else 0
+    else:
+        high_tech = 0
+        avg_score = 0
+
+    k1, k2, k3, k4, k5, k6, k7, k8 = st.columns(8)
     with k1:
         st.markdown(
             f"""<div class="metric-card"><div class="metric-label">Celkem inzeratu</div>
@@ -56,5 +65,17 @@ def render_kpi(df: pd.DataFrame) -> None:
             f"""<div class="metric-card"><div class="metric-label">S popisem</div>
             <div class="metric-value">{with_desc}</div>
             <div class="metric-label">{desc_pct}% coverage</div></div>""",
+            unsafe_allow_html=True,
+        )
+    with k7:
+        st.markdown(
+            f"""<div class="metric-card"><div class="metric-label">High-tech (60+)</div>
+            <div class="metric-value">{high_tech}</div></div>""",
+            unsafe_allow_html=True,
+        )
+    with k8:
+        st.markdown(
+            f"""<div class="metric-card"><div class="metric-label">Avg Tech Score</div>
+            <div class="metric-value">{avg_score}</div></div>""",
             unsafe_allow_html=True,
         )
