@@ -155,8 +155,8 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
                         st.markdown("**IT Stack:**")
                         tags_html = " ".join(
                             f'<span style="background:#1e40af;color:#fff;'
-                            f"padding:2px 8px;border-radius:4px;font-size:12px;"
-                            f'margin:2px;">{m["skill_id"]}</span>'
+                            f"padding:3px 12px;border-radius:6px;font-size:18px;"
+                            f'margin:3px;">{m["skill_id"]}</span>'
                             for m in skills["matches"][:12]
                         )
                         st.markdown(tags_html, unsafe_allow_html=True)
