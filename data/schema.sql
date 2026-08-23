@@ -1,4 +1,4 @@
--- MCP-Jobs PostgreSQL schema (Faze 1 standalone pivot)
+-- MCP-Jobs PostgreSQL schema (Faze 2 — skill catalog integration)
 -- Idempotent: safe to run multiple times (IF NOT EXISTS).
 
 CREATE TABLE IF NOT EXISTS ads (
@@ -25,6 +25,10 @@ ALTER TABLE ads ADD COLUMN IF NOT EXISTS fuzzy_title TEXT;
 ALTER TABLE ads ADD COLUMN IF NOT EXISTS fuzzy_company TEXT;
 ALTER TABLE ads ADD COLUMN IF NOT EXISTS fuzzy_location TEXT;
 
+-- Faze 2: Skill catalog — structured IT stack data extracted from descriptions.
+-- skills JSONB: {score, coverage, mentioned_weighted, matches[], domain{}, employer_tier, location{}}
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS skills JSONB DEFAULT '[]';
+
 CREATE TABLE IF NOT EXISTS pipeline_runs (
     id SERIAL PRIMARY KEY,
     profile TEXT NOT NULL,
@@ -39,4 +43,5 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 CREATE INDEX IF NOT EXISTS idx_ads_status ON ads (status);
 CREATE INDEX IF NOT EXISTS idx_ads_portal ON ads (portal);
 CREATE INDEX IF NOT EXISTS idx_ads_fuzzy_title ON ads (fuzzy_title, fuzzy_company, fuzzy_location);
+CREATE INDEX IF NOT EXISTS idx_ads_skills ON ads USING GIN (skills);
 CREATE INDEX IF NOT EXISTS idx_runs_profile ON pipeline_runs (profile);

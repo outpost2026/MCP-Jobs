@@ -49,6 +49,8 @@ def init_filter_state() -> None:
         "filter_days": 14,  # first_seen lookback
         "filter_high_signal_only": True,
         "filter_min_completeness": 0,
+        "filter_skills": [],  # skills filter
+        "available_skills": [],  # populated by app.py from DB
         "last_visit": None,  # date of previous session
     }
     for k, v in defaults.items():
@@ -140,6 +142,14 @@ def render_sidebar_filters(
         10,
     )
 
+    # Skills filter (from GIN-indexed skills JSONB)
+    st.session_state.filter_skills = st.sidebar.multiselect(
+        "IT Skills",
+        options=st.session_state.get("available_skills", []),
+        default=st.session_state.get("filter_skills", []),
+        help="Filtrovat podle detekovanych IT skillu v popisu",
+    )
+
 
 def build_where_clause() -> tuple[str, list]:
     """
@@ -169,9 +179,22 @@ def build_where_clause() -> tuple[str, list]:
         clauses.append("(title ILIKE %s OR company ILIKE %s)")
         params.extend([f"%{search}%", f"%{search}%"])
 
+    selected_skills = st.session_state.get("filter_skills") or []
+    if selected_skills:
+        for skill in selected_skills:
+            clauses.append("skills @> %s::jsonb")
+            params.append(_skill_match_json(skill))
+
     date_from = get_date_from()
     clauses.append("first_seen >= %s")
     params.append(date_from)
 
     where = " AND ".join(clauses) if clauses else "1=1"
     return where, params
+
+
+def _skill_match_json(skill_id: str) -> str:
+    """Build JSONB payload for GIN skill matching."""
+    import json as _json
+
+    return _json.dumps({"matches": [{"skill_id": skill_id}]})
