@@ -89,13 +89,18 @@ def get_database_url() -> str:
     if url:
         return url
 
-    # Streamlit secrets (Community Cloud)
+    # Streamlit secrets (Community Cloud) -- only when running inside Streamlit
     try:
         import streamlit as st
 
-        if hasattr(st, "secrets") and "DATABASE_URL" in st.secrets:
-            return st.secrets["DATABASE_URL"].strip()
-    except (ImportError, FileNotFoundError):
+        # Detect if we're actually running inside a Streamlit server
+        # st.secrets raises FileNotFoundError when secrets.toml is missing
+        if hasattr(st, "secrets") and "secrets.toml" not in str(
+            getattr(st.secrets, "_file_path", "")
+        ):
+            if "DATABASE_URL" in st.secrets:
+                return st.secrets["DATABASE_URL"].strip()
+    except Exception:
         pass
 
     # .env file fallback

@@ -136,7 +136,6 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
         df_ads[display_cols],
         use_container_width=True,
         hide_index=True,
-        on_select="rerun",
         column_config={
             "id": st.column_config.NumberColumn("ID", width="small"),
             "title": st.column_config.TextColumn("Nazev", width="large"),
