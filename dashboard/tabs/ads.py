@@ -20,8 +20,29 @@ _STATUS_EMOJI = {
 
 
 def _render_detail(r: pd.Series) -> None:
-    """Render single ad detail inline."""
+    """Render single ad detail inline (tags after header, before description)."""
+    import json as _json
+
     st.markdown(f"### {r['title']}")
+
+    # IT Stack tags -- immediately after header for quick orientation
+    skills = None
+    skills_raw = r.get("skills")
+    if skills_raw and skills_raw != "[]" and skills_raw is not None:
+        if isinstance(skills_raw, str):
+            skills = _json.loads(skills_raw)
+        elif isinstance(skills_raw, dict):
+            skills = skills_raw
+    if skills and skills.get("matches"):
+        tags_html = " ".join(
+            f'<span style="background:#1e40af;color:#fff;'
+            f"padding:3px 12px;border-radius:6px;font-size:18px;"
+            f'margin:3px;">{m["skill_id"]}</span>'
+            for m in skills["matches"][:12]
+        )
+        st.markdown(tags_html, unsafe_allow_html=True)
+
+    # Metadata columns
     m1, m2, m3 = st.columns(3)
     with m1:
         st.markdown(f"**Firma:** {r['company'] or '-'}")
@@ -36,6 +57,8 @@ def _render_detail(r: pd.Series) -> None:
         st.markdown(f"**Keyword:** {r['matched_keyword'] or '-'}")
         st.markdown(f"**Tech Score:** {r.get('tech_score', 0) or 0:.1f}")
     st.markdown("---")
+
+    # Description
     st.markdown("**Popis:**")
     st.markdown(
         f"""<div class="detail-desc"><textarea
@@ -44,32 +67,15 @@ def _render_detail(r: pd.Series) -> None:
         padding:12px;resize:vertical;" disabled>{_html.escape(str(r["description"] or "Zadny popis."))}</textarea></div>""",
         unsafe_allow_html=True,
     )
-    # Skills section
-    import json as _json
 
-    skills_raw = r.get("skills")
-    if skills_raw and skills_raw != "[]" and skills_raw is not None:
-        if isinstance(skills_raw, str):
-            skills = _json.loads(skills_raw)
-        elif isinstance(skills_raw, dict):
-            skills = skills_raw
-        else:
-            skills = None
-        if skills and skills.get("matches"):
-            st.markdown("**IT Stack:**")
-            tags_html = " ".join(
-                f'<span style="background:#1e40af;color:#fff;'
-                f"padding:3px 12px;border-radius:6px;font-size:18px;"
-                f'margin:3px;">{m["skill_id"]}</span>'
-                for m in skills["matches"][:12]
-            )
-            st.markdown(tags_html, unsafe_allow_html=True)
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Tech Score", f"{skills.get('score', 0):.1f}")
-            c2.metric("Coverage", f"{skills.get('coverage', 0):.1%}")
-            domain = skills.get("domain", {})
-            c3.metric("Domain Score", f"{domain.get('score', 0):.0f}")
-            c4.metric("Employer Tier", skills.get("employer_tier", "-"))
+    # Skills metrics
+    if skills and skills.get("matches"):
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Tech Score", f"{skills.get('score', 0):.1f}")
+        c2.metric("Coverage", f"{skills.get('coverage', 0):.1%}")
+        domain = skills.get("domain", {})
+        c3.metric("Domain Score", f"{domain.get('score', 0):.0f}")
+        c4.metric("Employer Tier", skills.get("employer_tier", "-"))
     st.markdown(f"[Otevrit na portale]({r['url']})")
 
 
@@ -141,10 +147,10 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
     )
 
     # Get selected row IDs from selection
-    selected_indices = (
-        event.selection.rows if event and event.selection else []
+    selected_indices = event.selection.rows if event and event.selection else []
+    selected_ids = (
+        df_ads.iloc[selected_indices]["id"].tolist() if selected_indices else []
     )
-    selected_ids = df_ads.iloc[selected_indices]["id"].tolist() if selected_indices else []
 
     # === QUICK ACTIONS (below table -- detail + status) ===
     if selected_ids:
@@ -196,7 +202,9 @@ def render_ads_tab(conn, run_query, where_sql: str, where_params: list) -> None:
                 st.write("")
                 st.write("")
                 id_list = ", ".join(str(i) for i in selected_ids[:10])
-                suffix = f" (+{len(selected_ids)-10}...)" if len(selected_ids) > 10 else ""
+                suffix = (
+                    f" (+{len(selected_ids) - 10}...)" if len(selected_ids) > 10 else ""
+                )
                 st.caption(f"ID: {id_list}{suffix}")
             with bc3:
                 st.write("")
