@@ -18,13 +18,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import tempfile
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 
-from mcp_jobs.db import connect, get_database_url, init_db
+from mcp_jobs.db import connect, get_database_url
 
 
 def export_local(conn) -> dict:

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 import pandas as pd
 import streamlit as st
 
@@ -11,7 +9,6 @@ import streamlit as st
 def render_kpi(df: pd.DataFrame) -> None:
     """Render KPI cards from filtered DataFrame (compact, for main area)."""
     total = len(df)
-    portals = df["portal"].nunique()
     companies = df["company"].nunique()
     with_salary = df["salary"].notna().sum()
     salary_pct = round(100 * with_salary / total, 1) if total > 0 else 0

@@ -42,11 +42,7 @@ def backfill_skills(dry_run: bool = False, force: bool = False) -> None:
     logger.info("Catalog loaded: %d skills", catalog.skill_count)
 
     # Fetch ads needing backfill
-    where = (
-        "WHERE description IS NOT NULL AND description != ''"
-        if not force
-        else "WHERE description IS NOT NULL AND description != ''"
-    )
+    where = "WHERE description IS NOT NULL AND description != ''"
     rows = conn.execute(
         "SELECT id, title, company, description FROM ads " + where
     ).fetchall()

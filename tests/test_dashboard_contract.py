@@ -6,7 +6,6 @@ hSNR: each test checks ONE invariant. No fixtures, no DB, no Streamlit.
 from __future__ import annotations
 
 import ast
-import importlib
 import inspect
 from pathlib import Path
 
@@ -124,7 +123,7 @@ class TestLayers:
         bad = [
             i
             for i in imports
-            if i.startswith("dashboard.tabs") or i.startswith("dashboard.components")
+            if i.startswith(("dashboard.tabs", "dashboard.components"))
         ]
         assert not bad, f"metrics.py imports higher layers: {bad}"
 
